@@ -1,0 +1,167 @@
+@page "/deck/{DeckId:int}/edit"
+@using Flashminds.Data
+@using Flashminds.Models
+@using Microsoft.EntityFrameworkCore
+@inject FlashmindsContext DbContext
+@inject NavigationManager Navigation
+
+<PageTitle>Edit Deck - FlashMind</PageTitle>
+
+<div class="container my-5">
+    @if (deck == null)
+    {
+        <p>Loading...</p>
+    }
+    else
+    {
+        <div class="row">
+            <div class="col-md-8">
+                <h1>✏️ Edit Deck: @deck.Title</h1>
+
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <h5 class="card-title">Deck Information</h5>
+                        <div class="mb-3">
+                            <label class="form-label">Title</label>
+                            <input type="text" class="form-control" @bind="deck.Title">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Description</label>
+                            <textarea class="form-control" @bind="deck.Description" rows="3"></textarea>
+                        </div>
+                        <button class="btn btn-success" @onclick="SaveDeck">Save Changes</button>
+                        <a href="/decks" class="btn btn-secondary">Back to Decks</a>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h5 class="card-title">Cards (@deck.Cards.Count)</h5>
+                            <button class="btn btn-sm btn-primary" @onclick="() => ShowCardForm = true">
+                                <span class="oi oi-plus"></span> New Card
+                            </button>
+                        </div>
+
+                        @if (ShowCardForm)
+                        {
+                            <div class="alert alert-info mb-3">
+                                <div class="mb-3">
+                                    <label class="form-label">Question</label>
+                                    <textarea class="form-control" @bind="newCardQuestion" rows="2" placeholder="Enter the question..."></textarea>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Answer</label>
+                                    <textarea class="form-control" @bind="newCardAnswer" rows="2" placeholder="Enter the answer..."></textarea>
+                                </div>
+                                <button class="btn btn-success btn-sm" @onclick="AddCard">Add Card</button>
+                                <button class="btn btn-secondary btn-sm" @onclick="() => ShowCardForm = false">Cancel</button>
+                            </div>
+                        }
+
+                        @if (deck.Cards.Count == 0)
+                        {
+                            <p class="text-muted">No cards yet. Add one to get started!</p>
+                        }
+                        else
+                        {
+                            <div class="table-responsive">
+                                <table class="table table-sm">
+                                    <thead>
+                                        <tr>
+                                            <th>Question</th>
+                                            <th>Answer</th>
+                                            <th>Reviews</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var card in deck.Cards)
+                                        {
+                                            <tr>
+                                                <td class="small">@card.Question</td>
+                                                <td class="small">@card.Answer</td>
+                                                <td>@card.ReviewCount</td>
+                                                <td>
+                                                    <button class="btn btn-sm btn-danger" @onclick="() => DeleteCard(card.Id)">
+                                                        <span class="oi oi-trash"></span>
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public int DeckId { get; set; }
+
+    private Deck? deck;
+    private bool ShowCardForm = false;
+    private string newCardQuestion = "";
+    private string newCardAnswer = "";
+
+    protected override void OnInitialized()
+    {
+        LoadDeck();
+    }
+
+    private void LoadDeck()
+    {
+        deck = DbContext.Decks
+            .Include(d => d.Cards)
+            .FirstOrDefault(d => d.Id == DeckId);
+    }
+
+    private async Task SaveDeck()
+    {
+        if (deck != null)
+        {
+            deck.UpdatedAt = DateTime.UtcNow;
+            DbContext.Decks.Update(deck);
+            await DbContext.SaveChangesAsync();
+        }
+    }
+
+    private async Task AddCard()
+    {
+        if (string.IsNullOrWhiteSpace(newCardQuestion) || string.IsNullOrWhiteSpace(newCardAnswer) || deck == null)
+            return;
+
+        var card = new Card
+        {
+            DeckId = deck.Id,
+            Question = newCardQuestion,
+            Answer = newCardAnswer,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+
+        DbContext.Cards.Add(card);
+        await DbContext.SaveChangesAsync();
+
+        newCardQuestion = "";
+        newCardAnswer = "";
+        ShowCardForm = false;
+        LoadDeck();
+    }
+
+    private async Task DeleteCard(int cardId)
+    {
+        var card = DbContext.Cards.Find(cardId);
+        if (card != null)
+        {
+            DbContext.Cards.Remove(card);
+            await DbContext.SaveChangesAsync();
+            LoadDeck();
+        }
+    }
+}

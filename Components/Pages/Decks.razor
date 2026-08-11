@@ -1,0 +1,177 @@
+@page "/decks"
+@using Flashminds.Data
+@using Flashminds.Models
+@using Flashminds.Services
+@using Microsoft.EntityFrameworkCore
+@inject FlashmindsContext DbContext
+@inject SpacedRepetitionService RepetitionService
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+<PageTitle>Decks - FlashMind</PageTitle>
+
+<div class="container my-5">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>📚 My Decks</h1>
+        <button class="btn btn-primary" @onclick="ShowCreateForm">
+            <span class="oi oi-plus"></span> New Deck
+        </button>
+    </div>
+
+    @if (isCreatingDeck)
+    {
+        <div class="card mb-4">
+            <div class="card-body">
+                <h5 class="card-title">Create New Deck</h5>
+                <div class="mb-3">
+                    <label class="form-label">Deck Title</label>
+                    <input type="text" class="form-control" @bind="newDeckTitle" placeholder="e.g., Spanish Vocabulary">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Description (optional)</label>
+                    <textarea class="form-control" @bind="newDeckDescription" rows="2" placeholder="Brief description..."></textarea>
+                </div>
+                <button class="btn btn-success" @onclick="CreateDeck">Create</button>
+                <button class="btn btn-secondary" @onclick="CancelCreateForm">Cancel</button>
+            </div>
+        </div>
+    }
+
+    @if (decks.Count == 0)
+    {
+        <div class="alert alert-info">
+            <p>No decks yet. <a href="#" @onclick="ShowCreateForm" class="alert-link">Create your first deck</a> to get started!</p>
+        </div>
+    }
+    else
+    {
+        <div class="row">
+            @foreach (var deck in decks)
+            {
+                var stats = RepetitionService.GetDeckStats(deck);
+                <div class="col-md-6 col-lg-4 mb-4">
+                    <div class="card h-100 deck-card">
+                        <div class="card-body">
+                            <h5 class="card-title">@deck.Title</h5>
+                            @if (!string.IsNullOrEmpty(deck.Description))
+                            {
+                                <p class="card-text small text-muted">@deck.Description</p>
+                            }
+
+                            <div class="deck-stats mb-3">
+                                <div class="stat-item">
+                                    <span class="stat-label">Cards:</span>
+                                    <span class="stat-value">@stats.TotalCards</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-label">Due Today:</span>
+                                    <span class="stat-value">@stats.DueCards</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-label">Mastered:</span>
+                                    <span class="stat-value">@Math.Round(stats.MasteryPercentage)%</span>
+                                </div>
+                            </div>
+
+                            <div class="progress mb-3" style="height: 20px;">
+                                @{ var width = Math.Round(stats.MasteryPercentage); }
+                                <div class="progress-bar bg-success" role="progressbar" 
+                                     style="width: @(width)%"
+                                     aria-valuenow="@((int)width)" 
+                                     aria-valuemin="0" aria-valuemax="100">
+                                    @(width)%
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card-footer bg-transparent">
+                            <button class="btn btn-sm btn-primary" @onclick="() => StudyDeck(deck.Id)">
+                                <span class="oi oi-book"></span> Study
+                            </button>
+                            <button class="btn btn-sm btn-secondary" @onclick="() => EditDeck(deck.Id)">
+                                <span class="oi oi-pencil"></span> Edit
+                            </button>
+                            <button class="btn btn-sm btn-danger" @onclick="() => DeleteDeck(deck.Id)">
+                                <span class="oi oi-trash"></span> Delete
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private List<Deck> decks = new();
+    private bool isCreatingDeck = false;
+    private string newDeckTitle = "";
+    private string newDeckDescription = "";
+
+    protected override void OnInitialized()
+    {
+        LoadDecks();
+    }
+
+    private void LoadDecks()
+    {
+        decks = DbContext.Decks.Include(d => d.Cards).ToList();
+    }
+
+    private void ShowCreateForm()
+    {
+        isCreatingDeck = true;
+    }
+
+    private void CancelCreateForm()
+    {
+        isCreatingDeck = false;
+        newDeckTitle = "";
+        newDeckDescription = "";
+    }
+
+    private async Task CreateDeck()
+    {
+        if (string.IsNullOrWhiteSpace(newDeckTitle))
+            return;
+
+        var deck = new Deck
+        {
+            Title = newDeckTitle,
+            Description = newDeckDescription,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+
+        DbContext.Decks.Add(deck);
+        await DbContext.SaveChangesAsync();
+
+        LoadDecks();
+        CancelCreateForm();
+    }
+
+    private void StudyDeck(int deckId)
+    {
+        Navigation.NavigateTo($"/study/{deckId}");
+    }
+
+    private void EditDeck(int deckId)
+    {
+        Navigation.NavigateTo($"/deck/{deckId}/edit");
+    }
+
+    private async Task DeleteDeck(int deckId)
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", "Are you sure you want to delete this deck? All cards will be removed."))
+            return;
+
+        var deck = DbContext.Decks.Find(deckId);
+        if (deck != null)
+        {
+            DbContext.Decks.Remove(deck);
+            await DbContext.SaveChangesAsync();
+            LoadDecks();
+        }
+    }
+
+    }
+
