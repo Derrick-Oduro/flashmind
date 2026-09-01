@@ -5,6 +5,7 @@
 @using Flashminds.Services
 @using Microsoft.EntityFrameworkCore
 @inject IDbContextFactory<FlashmindsContext> ContextFactory
+@inject AuthenticationStateProvider AuthenticationStateProvider
 @inject SpacedRepetitionService RepetitionService
 @inject NavigationManager Navigation
 
@@ -198,9 +199,11 @@
     private bool isFlipped = false;
     private SessionStats sessionStats = new();
     private StudySession? studySession;
+    private string? userId;
 
     protected override async Task OnInitializedAsync()
     {
+        userId = (await AuthenticationStateProvider.GetAuthenticationStateAsync()).User.FindFirstValue(ClaimTypes.NameIdentifier);
         await LoadStudyCardsAsync();
     }
 
@@ -210,7 +213,7 @@
         deck = await context.Decks
             .AsNoTracking()
             .Include(d => d.Cards)
-            .FirstOrDefaultAsync(d => d.Id == DeckId);
+            .FirstOrDefaultAsync(d => d.Id == DeckId && d.OwnerId == userId);
 
         if (deck != null)
         {
@@ -225,7 +228,9 @@
 
         var currentCard = cardsToStudy[currentCardIndex];
         await using var context = await ContextFactory.CreateDbContextAsync();
-        var storedCard = await context.Cards.FindAsync(currentCard.Id);
+        var storedCard = await context.Cards
+            .Include(c => c.Deck)
+            .FirstOrDefaultAsync(c => c.Id == currentCard.Id && c.Deck!.OwnerId == userId);
         if (storedCard is null)
         {
             await LoadStudyCardsAsync();

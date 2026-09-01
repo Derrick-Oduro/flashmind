@@ -29,6 +29,8 @@ public class FlashmindsContext : DbContext
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Title).IsRequired().HasMaxLength(200);
             entity.Property(e => e.Description).HasMaxLength(1000);
+            entity.Property(e => e.OwnerId).HasMaxLength(450);
+            entity.HasIndex(e => e.OwnerId);
             entity.HasMany(e => e.Cards)
                 .WithOne(c => c.Deck)
                 .HasForeignKey(c => c.DeckId)

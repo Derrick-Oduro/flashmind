@@ -4,6 +4,7 @@
 @using Flashminds.Models
 @using Microsoft.EntityFrameworkCore
 @inject IDbContextFactory<FlashmindsContext> ContextFactory
+@inject AuthenticationStateProvider AuthenticationStateProvider
 @inject NavigationManager Navigation
 
 <PageTitle>Edit Deck - FlashMind</PageTitle>
@@ -97,9 +98,11 @@
     private bool showAddForm = false;
     private string newQuestion = "";
     private string newAnswer = "";
+    private string? userId;
 
     protected override async Task OnInitializedAsync()
     {
+        userId = (await AuthenticationStateProvider.GetAuthenticationStateAsync()).User.FindFirstValue(ClaimTypes.NameIdentifier);
         await LoadDeckAsync();
     }
 
@@ -111,7 +114,7 @@
             await using var context = await ContextFactory.CreateDbContextAsync();
             deck = await context.Decks
                 .Include(d => d.Cards)
-                .FirstOrDefaultAsync(d => d.Id == DeckId);
+                .FirstOrDefaultAsync(d => d.Id == DeckId && d.OwnerId == userId);
             Console.WriteLine($"✅ Loaded deck: {deck?.Title}");
         }
         catch (Exception ex)
@@ -129,7 +132,13 @@
             Console.WriteLine($"Saving deck {deck.Id}...");
             await using var context = await ContextFactory.CreateDbContextAsync();
             deck.UpdatedAt = DateTime.UtcNow;
-            context.Decks.Update(deck);
+            var storedDeck = await context.Decks.FirstOrDefaultAsync(d => d.Id == deck.Id && d.OwnerId == userId);
+            if (storedDeck is null)
+                return;
+
+            storedDeck.Title = deck.Title;
+            storedDeck.Description = deck.Description;
+            storedDeck.UpdatedAt = DateTime.UtcNow;
             await context.SaveChangesAsync();
             Console.WriteLine($"✅ Deck saved");
         }
@@ -179,7 +188,9 @@
         {
             Console.WriteLine($"Deleting card {cardId}...");
             await using var context = await ContextFactory.CreateDbContextAsync();
-            var card = await context.Cards.FindAsync(cardId);
+            var card = await context.Cards
+                .Include(c => c.Deck)
+                .FirstOrDefaultAsync(c => c.Id == cardId && c.Deck!.OwnerId == userId);
             if (card != null)
             {
                 context.Cards.Remove(card);

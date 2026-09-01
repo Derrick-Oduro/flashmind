@@ -53,11 +53,26 @@ var app = builder.Build();
     using (context)
     {
         context.Database.EnsureCreated();
+        await EnsureDeckOwnerColumnAsync(context);
     }
 
     using var scope = app.Services.CreateScope();
     var authContext = scope.ServiceProvider.GetRequiredService<AuthContext>();
     authContext.Database.EnsureCreated();
+
+    var legacyOwnerEmail = app.Configuration["LegacyDeckOwnerEmail"];
+    if (!string.IsNullOrWhiteSpace(legacyOwnerEmail))
+    {
+        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<IdentityUser>>();
+        var legacyOwner = await userManager.FindByEmailAsync(legacyOwnerEmail);
+        if (legacyOwner is not null)
+        {
+            await using var studyContext = await contextFactory.CreateDbContextAsync();
+            await studyContext.Decks
+                .Where(deck => deck.OwnerId == null)
+                .ExecuteUpdateAsync(setters => setters.SetProperty(deck => deck.OwnerId, legacyOwner.Id));
+        }
+    }
 }
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
@@ -145,5 +160,43 @@ static async Task<bool> IsAntiforgeryValidAsync(HttpContext httpContext, IAntifo
     catch (AntiforgeryValidationException)
     {
         return false;
+    }
+}
+
+static async Task EnsureDeckOwnerColumnAsync(FlashmindsContext context)
+{
+    var connection = context.Database.GetDbConnection();
+    await connection.OpenAsync();
+    try
+    {
+        var ownerColumnExists = false;
+        {
+            await using var columnsCommand = connection.CreateCommand();
+            columnsCommand.CommandText = "PRAGMA table_info(\"Decks\")";
+            await using var reader = await columnsCommand.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                if (string.Equals(reader["name"]?.ToString(), "OwnerId", StringComparison.OrdinalIgnoreCase))
+                {
+                    ownerColumnExists = true;
+                    break;
+                }
+            }
+        }
+
+        if (!ownerColumnExists)
+        {
+            await using var alterCommand = connection.CreateCommand();
+            alterCommand.CommandText = "ALTER TABLE \"Decks\" ADD COLUMN \"OwnerId\" TEXT NULL";
+            await alterCommand.ExecuteNonQueryAsync();
+        }
+
+        await using var indexCommand = connection.CreateCommand();
+        indexCommand.CommandText = "CREATE INDEX IF NOT EXISTS \"IX_Decks_OwnerId\" ON \"Decks\" (\"OwnerId\")";
+        await indexCommand.ExecuteNonQueryAsync();
+    }
+    finally
+    {
+        await connection.CloseAsync();
     }
 }

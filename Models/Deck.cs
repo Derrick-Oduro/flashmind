@@ -11,6 +11,11 @@ public class Deck
 
     public string? Description { get; set; }
 
+    /// <summary>
+    /// The ASP.NET Core Identity user who owns this deck and all of its cards.
+    /// </summary>
+    public string? OwnerId { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;

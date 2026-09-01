@@ -5,6 +5,7 @@
 @using Flashminds.Services
 @using Microsoft.EntityFrameworkCore
 @inject IDbContextFactory<FlashmindsContext> ContextFactory
+@inject AuthenticationStateProvider AuthenticationStateProvider
 @inject SpacedRepetitionService RepetitionService
 
 <PageTitle>Progress - FlashMind</PageTitle>
@@ -189,9 +190,11 @@
     private List<(Deck, DeckStats)> deckStats = new();
     private List<StudySession> recentSessions = new();
     private OverallStats overallStats = new();
+    private string? userId;
 
     protected override async Task OnInitializedAsync()
     {
+        userId = (await AuthenticationStateProvider.GetAuthenticationStateAsync()).User.FindFirstValue(ClaimTypes.NameIdentifier);
         await LoadDataAsync();
     }
 
@@ -201,6 +204,7 @@
 
         decks = await context.Decks
             .AsNoTracking()
+            .Where(d => d.OwnerId == userId)
             .Include(d => d.Cards)
             .Include(d => d.StudySessions)
             .ToListAsync();
@@ -212,6 +216,7 @@
         recentSessions = await context.StudySessions
             .AsNoTracking()
             .Include(s => s.Deck)
+            .Where(s => s.Deck!.OwnerId == userId)
             .OrderByDescending(s => s.StartedAt)
             .ToListAsync();
 
