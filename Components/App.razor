@@ -1,5 +1,5 @@
 ﻿<!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-bs-theme="dark">
 
 <head>
     <meta charset="utf-8" />
@@ -15,8 +15,11 @@
 </head>
 
 <body>
-    <Routes />
+    <CascadingAuthenticationState>
+        <Routes @rendermode="InteractiveServer" />
+    </CascadingAuthenticationState>
     <ReconnectModal />
+    <script src="@Assets["app.js"]"></script>
     <script src="@Assets["_framework/blazor.web.js"]"></script>
 </body>
 

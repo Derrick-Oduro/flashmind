@@ -1,9 +1,11 @@
 @page "/decks"
+@attribute [Authorize]
 @using Flashminds.Data
+@rendermode InteractiveServer
 @using Flashminds.Models
 @using Flashminds.Services
 @using Microsoft.EntityFrameworkCore
-@inject FlashmindsContext DbContext
+@inject IDbContextFactory<FlashmindsContext> ContextFactory
 @inject SpacedRepetitionService RepetitionService
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
@@ -13,34 +15,55 @@
 <div class="container my-5">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h1>📚 My Decks</h1>
-        <button class="btn btn-primary" @onclick="ShowCreateForm">
+        <button class="btn btn-primary" @onclick="ToggleForm">
             <span class="oi oi-plus"></span> New Deck
         </button>
     </div>
 
-    @if (isCreatingDeck)
+    @if (isFormVisible)
     {
-        <div class="card mb-4">
+        <div class="card mb-4 border-primary">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">Create New Deck</h5>
+            </div>
             <div class="card-body">
-                <h5 class="card-title">Create New Deck</h5>
                 <div class="mb-3">
                     <label class="form-label">Deck Title</label>
-                    <input type="text" class="form-control" @bind="newDeckTitle" placeholder="e.g., Spanish Vocabulary">
+                    <input type="text" class="form-control" @bind="formTitle" placeholder="e.g., Spanish Vocabulary" />
                 </div>
                 <div class="mb-3">
                     <label class="form-label">Description (optional)</label>
-                    <textarea class="form-control" @bind="newDeckDescription" rows="2" placeholder="Brief description..."></textarea>
+                    <textarea class="form-control" @bind="formDescription" rows="2" placeholder="Brief description..."></textarea>
                 </div>
-                <button class="btn btn-success" @onclick="CreateDeck">Create</button>
-                <button class="btn btn-secondary" @onclick="CancelCreateForm">Cancel</button>
+                <button class="btn btn-success me-2" @onclick="CreateDeckAsync" disabled="@isLoading">
+                    @if (isLoading) { <span>Creating...</span> } else { <span>✓ Create</span> }
+                </button>
+                <button class="btn btn-secondary" @onclick="ToggleForm" disabled="@isLoading">Cancel</button>
             </div>
+        </div>
+    }
+
+    @if (errorMessage != "")
+    {
+        <div class="alert alert-danger alert-dismissible fade show">
+            <strong>Error:</strong> @errorMessage
+            <button type="button" class="btn-close" @onclick="ClearError"></button>
+        </div>
+    }
+
+    @if (successMessage != "")
+    {
+        <div class="alert alert-success alert-dismissible fade show">
+            @successMessage
+            <button type="button" class="btn-close" @onclick="ClearSuccess"></button>
         </div>
     }
 
     @if (decks.Count == 0)
     {
         <div class="alert alert-info">
-            <p>No decks yet. <a href="#" @onclick="ShowCreateForm" class="alert-link">Create your first deck</a> to get started!</p>
+            <h5>📝 No decks yet</h5>
+            <p>Click "New Deck" to create your first flashcard collection!</p>
         </div>
     }
     else
@@ -50,7 +73,7 @@
             {
                 var stats = RepetitionService.GetDeckStats(deck);
                 <div class="col-md-6 col-lg-4 mb-4">
-                    <div class="card h-100 deck-card">
+                    <div class="card h-100">
                         <div class="card-body">
                             <h5 class="card-title">@deck.Title</h5>
                             @if (!string.IsNullOrEmpty(deck.Description))
@@ -58,40 +81,39 @@
                                 <p class="card-text small text-muted">@deck.Description</p>
                             }
 
-                            <div class="deck-stats mb-3">
-                                <div class="stat-item">
-                                    <span class="stat-label">Cards:</span>
-                                    <span class="stat-value">@stats.TotalCards</span>
-                                </div>
-                                <div class="stat-item">
-                                    <span class="stat-label">Due Today:</span>
-                                    <span class="stat-value">@stats.DueCards</span>
-                                </div>
-                                <div class="stat-item">
-                                    <span class="stat-label">Mastered:</span>
-                                    <span class="stat-value">@Math.Round(stats.MasteryPercentage)%</span>
+                            <div class="mb-3">
+                                <div class="row text-center small">
+                                    <div class="col-4">
+                                        <small class="text-muted">Cards</small><br/><strong>@stats.TotalCards</strong>
+                                    </div>
+                                    <div class="col-4">
+                                        <small class="text-muted">Due</small><br/><strong>@stats.DueCards</strong>
+                                    </div>
+                                    <div class="col-4">
+                                        <small class="text-muted">Mastered</small><br/><strong>@Math.Round(stats.MasteryPercentage)%</strong>
+                                    </div>
                                 </div>
                             </div>
 
-                            <div class="progress mb-3" style="height: 20px;">
-                                @{ var width = Math.Round(stats.MasteryPercentage); }
+                            <div class="progress mb-3" style="height: 25px;">
+                                @{ var pct = Math.Round(stats.MasteryPercentage); }
                                 <div class="progress-bar bg-success" role="progressbar" 
-                                     style="width: @(width)%"
-                                     aria-valuenow="@((int)width)" 
+                                     style="width: @pct%"
+                                     aria-valuenow="@((int)pct)" 
                                      aria-valuemin="0" aria-valuemax="100">
-                                    @(width)%
+                                    @pct%
                                 </div>
                             </div>
                         </div>
                         <div class="card-footer bg-transparent">
-                            <button class="btn btn-sm btn-primary" @onclick="() => StudyDeck(deck.Id)">
-                                <span class="oi oi-book"></span> Study
+                            <button class="btn btn-sm btn-primary" @onclick="@((e) => StudyDeck(deck.Id))">
+                                Study
                             </button>
-                            <button class="btn btn-sm btn-secondary" @onclick="() => EditDeck(deck.Id)">
-                                <span class="oi oi-pencil"></span> Edit
+                            <button class="btn btn-sm btn-info" @onclick="@((e) => EditDeck(deck.Id))">
+                                Edit
                             </button>
-                            <button class="btn btn-sm btn-danger" @onclick="() => DeleteDeck(deck.Id)">
-                                <span class="oi oi-trash"></span> Delete
+                            <button class="btn btn-sm btn-danger" @onclick="() => DeleteDeckAsync(deck.Id)">
+                                Delete
                             </button>
                         </div>
                     </div>
@@ -103,75 +125,126 @@
 
 @code {
     private List<Deck> decks = new();
-    private bool isCreatingDeck = false;
-    private string newDeckTitle = "";
-    private string newDeckDescription = "";
+    private bool isFormVisible = false;
+    private bool isLoading = false;
+    private string formTitle = "";
+    private string formDescription = "";
+    private string errorMessage = "";
+    private string successMessage = "";
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
-        LoadDecks();
+        await LoadDecksAsync();
     }
 
-    private void LoadDecks()
+    private async Task LoadDecksAsync()
     {
-        decks = DbContext.Decks.Include(d => d.Cards).ToList();
-    }
-
-    private void ShowCreateForm()
-    {
-        isCreatingDeck = true;
-    }
-
-    private void CancelCreateForm()
-    {
-        isCreatingDeck = false;
-        newDeckTitle = "";
-        newDeckDescription = "";
-    }
-
-    private async Task CreateDeck()
-    {
-        if (string.IsNullOrWhiteSpace(newDeckTitle))
-            return;
-
-        var deck = new Deck
+        try
         {
-            Title = newDeckTitle,
-            Description = newDeckDescription,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
-        };
-
-        DbContext.Decks.Add(deck);
-        await DbContext.SaveChangesAsync();
-
-        LoadDecks();
-        CancelCreateForm();
-    }
-
-    private void StudyDeck(int deckId)
-    {
-        Navigation.NavigateTo($"/study/{deckId}");
-    }
-
-    private void EditDeck(int deckId)
-    {
-        Navigation.NavigateTo($"/deck/{deckId}/edit");
-    }
-
-    private async Task DeleteDeck(int deckId)
-    {
-        if (!await JS.InvokeAsync<bool>("confirm", "Are you sure you want to delete this deck? All cards will be removed."))
-            return;
-
-        var deck = DbContext.Decks.Find(deckId);
-        if (deck != null)
+            Console.WriteLine("🔄 Loading decks...");
+            await using var context = await ContextFactory.CreateDbContextAsync();
+            decks = await context.Decks
+                .Include(d => d.Cards)
+                .OrderByDescending(d => d.CreatedAt)
+                .ToListAsync();
+            Console.WriteLine($"✅ Loaded {decks.Count} decks");
+        }
+        catch (Exception ex)
         {
-            DbContext.Decks.Remove(deck);
-            await DbContext.SaveChangesAsync();
-            LoadDecks();
+            Console.WriteLine($"❌ Error loading decks: {ex}");
+            errorMessage = $"Error loading decks: {ex.Message}";
         }
     }
 
+    private void ToggleForm()
+    {
+        isFormVisible = !isFormVisible;
+        if (!isFormVisible)
+        {
+            formTitle = "";
+            formDescription = "";
+            errorMessage = "";
+        }
     }
 
+    private void ClearError() => errorMessage = "";
+    private void ClearSuccess() => successMessage = "";
+    private void StudyDeck(int deckId) => Navigation.NavigateTo($"/study/{deckId}");
+    private void EditDeck(int deckId) => Navigation.NavigateTo($"/deck/{deckId}/edit");
+
+    private async Task CreateDeckAsync()
+    {
+        if (string.IsNullOrWhiteSpace(formTitle))
+        {
+            errorMessage = "Please enter a deck title";
+            return;
+        }
+
+        isLoading = true;
+        errorMessage = "";
+        successMessage = "";
+
+        try
+        {
+            Console.WriteLine($"📝 Creating deck: {formTitle}");
+
+            await using var context = await ContextFactory.CreateDbContextAsync();
+
+            var newDeck = new Deck
+            {
+                Title = formTitle.Trim(),
+                Description = formDescription?.Trim(),
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+
+            context.Decks.Add(newDeck);
+            int result = await context.SaveChangesAsync();
+
+            Console.WriteLine($"✅ Deck created! SaveChangesAsync returned: {result}");
+
+            successMessage = $"Deck '{formTitle}' created successfully!";
+            formTitle = "";
+            formDescription = "";
+            isFormVisible = false;
+
+            await LoadDecksAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"❌ Error creating deck: {ex}");
+            errorMessage = $"Failed to create deck: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task DeleteDeckAsync(int deckId)
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", "Delete this deck and all its cards?"))
+            return;
+
+        try
+        {
+            Console.WriteLine($"🗑️ Deleting deck {deckId}...");
+            await using var context = await ContextFactory.CreateDbContextAsync();
+
+            var deck = await context.Decks.FindAsync(deckId);
+            if (deck != null)
+            {
+                context.Decks.Remove(deck);
+                await context.SaveChangesAsync();
+                Console.WriteLine($"✅ Deck deleted");
+                successMessage = "Deck deleted successfully";
+                await LoadDecksAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"❌ Error deleting deck: {ex}");
+            errorMessage = $"Failed to delete deck: {ex.Message}";
+        }
+    }
+}
