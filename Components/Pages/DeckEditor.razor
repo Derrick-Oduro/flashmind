@@ -45,9 +45,12 @@
 
                 <div class="card">
                     <div class="card-body">
-                        <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
                             <h2 class="fs-5 mb-0">Cards (@deck.Cards.Count)</h2>
-                            <button class="btn btn-sm btn-primary" @onclick="() => showAddForm = true">+ Add Card</button>
+                            <div class="d-flex gap-2">
+                                <button class="btn btn-sm btn-secondary" @onclick="ToggleImportForm">Import cards</button>
+                                <button class="btn btn-sm btn-primary" @onclick="() => showAddForm = true">+ Add Card</button>
+                            </div>
                         </div>
 
                         @if (showAddForm)
@@ -63,6 +66,25 @@
                                 </div>
                                 <button class="btn btn-sm btn-success me-2" @onclick="AddCardAsync">Add</button>
                                 <button class="btn btn-sm btn-secondary" @onclick="() => showAddForm = false">Cancel</button>
+                            </div>
+                        }
+
+                        @if (showImportForm)
+                        {
+                            <div class="alert alert-info mb-3">
+                                <h3 class="fs-6">Import cards from text or CSV</h3>
+                                <p class="small text-muted">Paste one card per line using a pipe, tab, or comma between the question and answer. Example: <code>What is active recall? | Retrieving information from memory</code></p>
+                                <textarea class="form-control mb-2" @bind="importText" rows="7" placeholder="Question | Answer&#10;Another question | Another answer"></textarea>
+                                <button class="btn btn-sm btn-success me-2" @onclick="ImportCardsAsync">Import cards</button>
+                                <button class="btn btn-sm btn-secondary" @onclick="ToggleImportForm">Cancel</button>
+                                @if (!string.IsNullOrWhiteSpace(importMessage))
+                                {
+                                    <p class="text-success small mt-2 mb-0">@importMessage</p>
+                                }
+                                @if (!string.IsNullOrWhiteSpace(importError))
+                                {
+                                    <p class="text-danger small mt-2 mb-0">@importError</p>
+                                }
                             </div>
                         }
 
@@ -103,8 +125,12 @@
 
     private Deck? deck;
     private bool showAddForm = false;
+    private bool showImportForm = false;
     private string newQuestion = "";
     private string newAnswer = "";
+    private string importText = "";
+    private string importMessage = "";
+    private string importError = "";
     private string? userId;
 
     protected override async Task OnInitializedAsync()
@@ -186,6 +212,90 @@
         catch (Exception ex)
         {
             Console.WriteLine($"❌ Error adding card: {ex}");
+        }
+    }
+
+    private void ToggleImportForm()
+    {
+        showImportForm = !showImportForm;
+        importMessage = "";
+        importError = "";
+        if (!showImportForm)
+            importText = "";
+    }
+
+    private async Task ImportCardsAsync()
+    {
+        if (deck is null)
+            return;
+
+        var candidates = ParseImportedCards(importText).ToList();
+        if (candidates.Count == 0)
+        {
+            importError = "Add at least one complete question and answer pair. Use |, a tab, or a comma between them.";
+            importMessage = "";
+            return;
+        }
+
+        if (candidates.Count > 500)
+        {
+            importError = "Import up to 500 cards at a time.";
+            importMessage = "";
+            return;
+        }
+
+        await using var context = await ContextFactory.CreateDbContextAsync();
+        var ownedDeck = await context.Decks
+            .Include(item => item.Cards)
+            .FirstOrDefaultAsync(item => item.Id == deck.Id && item.OwnerId == userId);
+        if (ownedDeck is null)
+            return;
+
+        var knownQuestions = ownedDeck.Cards
+            .Select(card => card.Question.Trim())
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var cardsToAdd = candidates
+            .Where(candidate => knownQuestions.Add(candidate.Question))
+            .Select(candidate => new Card
+            {
+                DeckId = ownedDeck.Id,
+                Question = candidate.Question,
+                Answer = candidate.Answer,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            })
+            .ToList();
+
+        if (cardsToAdd.Count == 0)
+        {
+            importError = "Every imported question is already in this deck.";
+            importMessage = "";
+            return;
+        }
+
+        context.Cards.AddRange(cardsToAdd);
+        await context.SaveChangesAsync();
+        var skipped = candidates.Count - cardsToAdd.Count;
+        importMessage = $"Imported {cardsToAdd.Count} card{(cardsToAdd.Count == 1 ? "" : "s")}{(skipped > 0 ? $"; skipped {skipped} duplicate{(skipped == 1 ? "" : "s")}" : "")}.";
+        importError = "";
+        importText = "";
+        await LoadDeckAsync();
+    }
+
+    private static IEnumerable<(string Question, string Answer)> ParseImportedCards(string source)
+    {
+        foreach (var rawLine in source.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            var line = rawLine.Trim('\r', ' ', '\t');
+            var separator = line.Contains('|') ? '|' : line.Contains('\t') ? '\t' : ',';
+            var separatorIndex = line.IndexOf(separator);
+            if (separatorIndex <= 0 || separatorIndex >= line.Length - 1)
+                continue;
+
+            var question = line[..separatorIndex].Trim().Trim('"');
+            var answer = line[(separatorIndex + 1)..].Trim().Trim('"');
+            if (!string.IsNullOrWhiteSpace(question) && !string.IsNullOrWhiteSpace(answer))
+                yield return (question, answer);
         }
     }
 
