@@ -57,15 +57,24 @@
                         {
                             <div class="alert alert-info mb-3">
                                 <div class="mb-2">
-                                    <label>Question</label>
-                                    <textarea class="form-control" @bind="newQuestion" rows="2"></textarea>
+                                    <label>Card type</label>
+                                    <select class="form-select" @bind="newCardType">
+                                        <option value="Basic">Basic — question and answer</option>
+                                        <option value="Cloze">Fill in the blank — cloze</option>
+                                    </select>
                                 </div>
                                 <div class="mb-2">
-                                    <label>Answer</label>
-                                    <textarea class="form-control" @bind="newAnswer" rows="2"></textarea>
+                                    <label>@(newCardType == "Cloze" ? "Sentence with a blank" : "Question")</label>
+                                    <textarea class="form-control" @bind="newQuestion" rows="2" placeholder="@(newCardType == "Cloze" ? "The capital of France is {{c1::Paris}}." : "Ask a clear question")"></textarea>
                                 </div>
+                                <div class="mb-2">
+                                    <label>Answer @(newCardType == "Cloze" ? "(optional — taken from {{c1::...}})" : "")</label>
+                                    <textarea class="form-control" @bind="newAnswer" rows="2" placeholder="@(newCardType == "Cloze" ? "Optional fallback answer" : "Write the answer")"></textarea>
+                                </div>
+                                <div class="mb-2"><label>Hint (optional)</label><input class="form-control" @bind="newHint" placeholder="A small nudge before revealing the answer" /></div>
+                                <div class="mb-2"><label>Explanation (optional)</label><textarea class="form-control" @bind="newExplanation" rows="2" placeholder="Extra context shown with the answer"></textarea></div>
                                 <button class="btn btn-sm btn-success me-2" @onclick="AddCardAsync">Add</button>
-                                <button class="btn btn-sm btn-secondary" @onclick="() => showAddForm = false">Cancel</button>
+                                <button class="btn btn-sm btn-secondary" @onclick="ResetAddForm">Cancel</button>
                             </div>
                         }
 
@@ -88,6 +97,19 @@
                             </div>
                         }
 
+                        @if (editingCardId is not null)
+                        {
+                            <div class="alert alert-info mb-3">
+                                <h3 class="fs-6">Edit card</h3>
+                                <div class="mb-2"><label>Card type</label><select class="form-select" @bind="editCardType"><option value="Basic">Basic — question and answer</option><option value="Cloze">Fill in the blank — cloze</option></select></div>
+                                <div class="mb-2"><label>@(editCardType == "Cloze" ? "Sentence with a blank" : "Question")</label><textarea class="form-control" @bind="editQuestion" rows="2"></textarea></div>
+                                <div class="mb-2"><label>Answer @(editCardType == "Cloze" ? "(optional — taken from {{c1::...}})" : "")</label><textarea class="form-control" @bind="editAnswer" rows="2"></textarea></div>
+                                <div class="mb-2"><label>Hint (optional)</label><input class="form-control" @bind="editHint" /></div>
+                                <div class="mb-2"><label>Explanation (optional)</label><textarea class="form-control" @bind="editExplanation" rows="2"></textarea></div>
+                                <button class="btn btn-sm btn-success me-2" @onclick="SaveCardAsync">Save card</button><button class="btn btn-sm btn-secondary" @onclick="CancelCardEdit">Cancel</button>
+                            </div>
+                        }
+
                         @if (deck.Cards.Count == 0)
                         {
                             <p class="text-muted">No cards yet</p>
@@ -98,6 +120,7 @@
                                 <tr>
                                     <th>Q</th>
                                     <th>A</th>
+                                    <th>Type</th>
                                     <th></th>
                                 </tr>
                                 @foreach (var card in deck.Cards)
@@ -105,7 +128,9 @@
                                     <tr>
                                         <td>@card.Question.Substring(0, Math.Min(30, card.Question.Length))</td>
                                         <td>@card.Answer.Substring(0, Math.Min(30, card.Answer.Length))</td>
+                                        <td><span class="badge bg-secondary">@card.CardType</span></td>
                                         <td>
+                                            <button class="btn btn-sm btn-secondary me-1" @onclick="() => StartCardEdit(card)">Edit</button>
                                             <button class="btn btn-sm btn-danger" @onclick="() => DeleteCardAsync(card.Id)">X</button>
                                         </td>
                                     </tr>
@@ -128,6 +153,15 @@
     private bool showImportForm = false;
     private string newQuestion = "";
     private string newAnswer = "";
+    private string newCardType = "Basic";
+    private string newHint = "";
+    private string newExplanation = "";
+    private int? editingCardId;
+    private string editQuestion = "";
+    private string editAnswer = "";
+    private string editCardType = "Basic";
+    private string editHint = "";
+    private string editExplanation = "";
     private string importText = "";
     private string importMessage = "";
     private string importError = "";
@@ -183,7 +217,11 @@
 
     private async Task AddCardAsync()
     {
-        if (string.IsNullOrWhiteSpace(newQuestion) || string.IsNullOrWhiteSpace(newAnswer) || deck == null)
+        if (deck is null || string.IsNullOrWhiteSpace(newQuestion))
+            return;
+
+        var answer = newCardType == "Cloze" ? ExtractClozeAnswer(newQuestion) ?? newAnswer.Trim() : newAnswer.Trim();
+        if (string.IsNullOrWhiteSpace(answer))
             return;
 
         try
@@ -194,8 +232,11 @@
             var card = new Card
             {
                 DeckId = deck.Id,
-                Question = newQuestion,
-                Answer = newAnswer,
+                Question = newQuestion.Trim(),
+                Answer = answer,
+                CardType = newCardType,
+                Hint = EmptyToNull(newHint),
+                Explanation = EmptyToNull(newExplanation),
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
             };
@@ -204,9 +245,7 @@
             await context.SaveChangesAsync();
             Console.WriteLine($"✅ Card added");
 
-            newQuestion = "";
-            newAnswer = "";
-            showAddForm = false;
+            ResetAddForm();
             await LoadDeckAsync();
         }
         catch (Exception ex)
@@ -214,6 +253,70 @@
             Console.WriteLine($"❌ Error adding card: {ex}");
         }
     }
+
+    private void ResetAddForm()
+    {
+        showAddForm = false;
+        newQuestion = "";
+        newAnswer = "";
+        newCardType = "Basic";
+        newHint = "";
+        newExplanation = "";
+    }
+
+    private void StartCardEdit(Card card)
+    {
+        editingCardId = card.Id;
+        editQuestion = card.Question;
+        editAnswer = card.Answer;
+        editCardType = card.CardType;
+        editHint = card.Hint ?? "";
+        editExplanation = card.Explanation ?? "";
+    }
+
+    private void CancelCardEdit()
+    {
+        editingCardId = null;
+        editQuestion = "";
+        editAnswer = "";
+        editCardType = "Basic";
+        editHint = "";
+        editExplanation = "";
+    }
+
+    private async Task SaveCardAsync()
+    {
+        if (editingCardId is null || string.IsNullOrWhiteSpace(editQuestion))
+            return;
+
+        var answer = editCardType == "Cloze" ? ExtractClozeAnswer(editQuestion) ?? editAnswer.Trim() : editAnswer.Trim();
+        if (string.IsNullOrWhiteSpace(answer))
+            return;
+
+        await using var context = await ContextFactory.CreateDbContextAsync();
+        var card = await context.Cards.Include(item => item.Deck)
+            .FirstOrDefaultAsync(item => item.Id == editingCardId && item.Deck!.OwnerId == userId);
+        if (card is null)
+            return;
+
+        card.Question = editQuestion.Trim();
+        card.Answer = answer;
+        card.CardType = editCardType;
+        card.Hint = EmptyToNull(editHint);
+        card.Explanation = EmptyToNull(editExplanation);
+        card.UpdatedAt = DateTime.UtcNow;
+        await context.SaveChangesAsync();
+        CancelCardEdit();
+        await LoadDeckAsync();
+    }
+
+    private static string? ExtractClozeAnswer(string source)
+    {
+        var match = System.Text.RegularExpressions.Regex.Match(source, @"\{\{c\d+::(.*?)(?:::[^}]*)?\}\}", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        return match.Success ? match.Groups[1].Value.Trim() : null;
+    }
+
+    private static string? EmptyToNull(string value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
     private void ToggleImportForm()
     {

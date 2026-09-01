@@ -46,13 +46,33 @@
                 <div class="card-study mb-4">
                     <div class="card-container" @onclick="() => isFlipped = !isFlipped" tabindex="0" role="button" @onkeydown="HandleCardKeydown" aria-label="Reveal or hide answer">
                         <div class="card-face front @(isFlipped ? "hidden" : "")">
-                            <div class="card-label">Question</div>
-                            <div class="card-content">@currentCard.Question</div>
-                            <div class="card-hint">Click to reveal answer</div>
+                            <div class="card-label">@(IsCloze(currentCard) ? "Fill in the blank" : "Question")</div>
+                            <div class="card-content">@(IsCloze(currentCard) ? ClozePrompt(currentCard.Question) : currentCard.Question)</div>
+                            @if (!string.IsNullOrWhiteSpace(currentCard.Hint))
+                            {
+                                <div class="card-hint">Hint: @currentCard.Hint</div>
+                            }
+                            @if (IsCloze(currentCard))
+                            {
+                                <input class="cloze-answer-input" @bind="typedAnswer" @onclick:stopPropagation="true" placeholder="Type your answer" aria-label="Your answer" />
+                                <button class="btn btn-secondary btn-sm mt-3" @onclick="RevealAnswer" @onclick:stopPropagation="true">Check answer</button>
+                            }
+                            else
+                            {
+                                <div class="card-hint">Click to reveal answer</div>
+                            }
                         </div>
                         <div class="card-face back @(!isFlipped ? "hidden" : "")">
                             <div class="card-label">Answer</div>
-                            <div class="card-content">@currentCard.Answer</div>
+                            <div class="card-content">@(IsCloze(currentCard) ? ClozeAnswer(currentCard) : currentCard.Answer)</div>
+                            @if (IsCloze(currentCard) && !string.IsNullOrWhiteSpace(typedAnswer))
+                            {
+                                <div class="card-hint">Your answer: @typedAnswer</div>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(currentCard.Explanation))
+                            {
+                                <div class="card-explanation">@currentCard.Explanation</div>
+                            }
                             <div class="card-hint">Click to hide answer</div>
                         </div>
                     </div>
@@ -111,6 +131,7 @@
     private List<Card> cardsToStudy = new();
     private int currentCardIndex = 0;
     private bool isFlipped = false;
+    private string typedAnswer = "";
     private SessionStats sessionStats = new();
     private StudySession? studySession;
     private string? userId;
@@ -121,6 +142,22 @@
         {
             isFlipped = !isFlipped;
         }
+    }
+
+    private void RevealAnswer() => isFlipped = true;
+
+    private static bool IsCloze(Card card) => string.Equals(card.CardType, "Cloze", StringComparison.OrdinalIgnoreCase);
+
+    private static string ClozePrompt(string source) => System.Text.RegularExpressions.Regex.Replace(
+        source,
+        @"\{\{c\d+::.*?(?:::[^}]*)?\}\}",
+        "____",
+        System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+    private static string ClozeAnswer(Card card)
+    {
+        var match = System.Text.RegularExpressions.Regex.Match(card.Question, @"\{\{c\d+::(.*?)(?:::[^}]*)?\}\}", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        return match.Success ? match.Groups[1].Value.Trim() : card.Answer;
     }
 
     protected override async Task OnInitializedAsync()
@@ -205,6 +242,7 @@
 
         // Move to next card
         isFlipped = false;
+        typedAnswer = "";
         currentCardIndex++;
     }
 

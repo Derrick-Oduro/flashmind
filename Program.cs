@@ -54,6 +54,7 @@ var app = builder.Build();
     {
         context.Database.EnsureCreated();
         await EnsureDeckOwnerColumnAsync(context);
+        await EnsureCardCreationColumnsAsync(context);
     }
 
     using var scope = app.Services.CreateScope();
@@ -194,6 +195,43 @@ static async Task EnsureDeckOwnerColumnAsync(FlashmindsContext context)
         await using var indexCommand = connection.CreateCommand();
         indexCommand.CommandText = "CREATE INDEX IF NOT EXISTS \"IX_Decks_OwnerId\" ON \"Decks\" (\"OwnerId\")";
         await indexCommand.ExecuteNonQueryAsync();
+    }
+    finally
+    {
+        await connection.CloseAsync();
+    }
+}
+
+static async Task EnsureCardCreationColumnsAsync(FlashmindsContext context)
+{
+    var connection = context.Database.GetDbConnection();
+    await connection.OpenAsync();
+    try
+    {
+        var existingColumns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        await using (var columnsCommand = connection.CreateCommand())
+        {
+            columnsCommand.CommandText = "PRAGMA table_info(\"Cards\")";
+            await using var reader = await columnsCommand.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                existingColumns.Add(reader["name"]?.ToString() ?? string.Empty);
+            }
+        }
+
+        var missingColumns = new Dictionary<string, string>
+        {
+            ["CardType"] = "TEXT NOT NULL DEFAULT 'Basic'",
+            ["Hint"] = "TEXT NULL",
+            ["Explanation"] = "TEXT NULL"
+        };
+
+        foreach (var (columnName, columnDefinition) in missingColumns.Where(column => !existingColumns.Contains(column.Key)))
+        {
+            await using var alterCommand = connection.CreateCommand();
+            alterCommand.CommandText = $"ALTER TABLE \"Cards\" ADD COLUMN \"{columnName}\" {columnDefinition}";
+            await alterCommand.ExecuteNonQueryAsync();
+        }
     }
     finally
     {

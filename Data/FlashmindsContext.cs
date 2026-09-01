@@ -47,6 +47,9 @@ public class FlashmindsContext : DbContext
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Question).IsRequired();
             entity.Property(e => e.Answer).IsRequired();
+            entity.Property(e => e.CardType).IsRequired().HasMaxLength(20).HasDefaultValue("Basic");
+            entity.Property(e => e.Hint).HasMaxLength(1000);
+            entity.Property(e => e.Explanation).HasMaxLength(2000);
             entity.HasIndex(e => e.DeckId);
             entity.HasIndex(e => e.NextReviewDate);
         });
