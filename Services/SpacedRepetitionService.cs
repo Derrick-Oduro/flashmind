@@ -73,7 +73,10 @@ public class SpacedRepetitionService
 
         var correctCount = deck.Cards.Sum(c => c.CorrectCount);
         var reviewCount = deck.Cards.Sum(c => c.ReviewCount);
-        var masterCount = deck.Cards.Count(c => c.CorrectCount >= c.ReviewCount * 0.8); // 80% correct rate
+        // A card cannot be mastered until it has been reviewed at least once.
+        // Without this guard, 0 correct answers out of 0 reviews is treated as 100%.
+        var masterCount = deck.Cards.Count(c =>
+            c.ReviewCount > 0 && (double)c.CorrectCount / c.ReviewCount >= 0.8);
         var dueCount = GetCardsDueTodayCount(deck.Cards);
 
         return new DeckStats

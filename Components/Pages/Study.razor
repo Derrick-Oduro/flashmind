@@ -3,7 +3,7 @@
 @using Flashminds.Models
 @using Flashminds.Services
 @using Microsoft.EntityFrameworkCore
-@inject FlashmindsContext DbContext
+@inject IDbContextFactory<FlashmindsContext> ContextFactory
 @inject SpacedRepetitionService RepetitionService
 @inject NavigationManager Navigation
 
@@ -197,17 +197,20 @@
     private int currentCardIndex = 0;
     private bool isFlipped = false;
     private SessionStats sessionStats = new();
+    private StudySession? studySession;
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
-        LoadStudyCards();
+        await LoadStudyCardsAsync();
     }
 
-    private void LoadStudyCards()
+    private async Task LoadStudyCardsAsync()
     {
-        deck = DbContext.Decks
+        await using var context = await ContextFactory.CreateDbContextAsync();
+        deck = await context.Decks
+            .AsNoTracking()
             .Include(d => d.Cards)
-            .FirstOrDefault(d => d.Id == DeckId);
+            .FirstOrDefaultAsync(d => d.Id == DeckId);
 
         if (deck != null)
         {
@@ -221,19 +224,57 @@
             return;
 
         var currentCard = cardsToStudy[currentCardIndex];
+        await using var context = await ContextFactory.CreateDbContextAsync();
+        var storedCard = await context.Cards.FindAsync(currentCard.Id);
+        if (storedCard is null)
+        {
+            await LoadStudyCardsAsync();
+            return;
+        }
 
         // Update card with spaced repetition logic
-        RepetitionService.UpdateCardInterval(currentCard, difficulty);
-        DbContext.Cards.Update(currentCard);
+        RepetitionService.UpdateCardInterval(storedCard, difficulty);
 
-        // Track session stats
+        // Create the session only when the user answers their first card.
+        // This avoids recording empty sessions when a user opens and leaves a deck.
+        var isNewSession = studySession is null;
+        studySession ??= new StudySession
+        {
+            DeckId = DeckId,
+            StartedAt = DateTime.UtcNow
+        };
+
         sessionStats.ReviewCount++;
+        studySession.CardReviewedCount++;
         if (difficulty >= 3)
         {
             sessionStats.CorrectCount++;
+            studySession.CardCorrectCount++;
         }
 
-        await DbContext.SaveChangesAsync();
+        studySession.DurationSeconds = (int)(DateTime.UtcNow - studySession.StartedAt).TotalSeconds;
+        if (currentCardIndex + 1 == cardsToStudy.Count)
+        {
+            studySession.CompletedAt = DateTime.UtcNow;
+        }
+
+        if (isNewSession)
+        {
+            context.StudySessions.Add(studySession);
+        }
+        else
+        {
+            context.StudySessions.Update(studySession);
+        }
+
+        context.CardReviews.Add(new CardReview
+        {
+            CardId = storedCard.Id,
+            StudySession = studySession,
+            Difficulty = difficulty
+        });
+
+        await context.SaveChangesAsync();
 
         // Move to next card
         isFlipped = false;

@@ -3,7 +3,7 @@
 @using Flashminds.Models
 @using Flashminds.Services
 @using Microsoft.EntityFrameworkCore
-@inject FlashmindsContext DbContext
+@inject IDbContextFactory<FlashmindsContext> ContextFactory
 @inject SpacedRepetitionService RepetitionService
 
 <PageTitle>Progress - FlashMind</PageTitle>
@@ -189,26 +189,30 @@
     private List<StudySession> recentSessions = new();
     private OverallStats overallStats = new();
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
-        LoadData();
+        await LoadDataAsync();
     }
 
-    private void LoadData()
+    private async Task LoadDataAsync()
     {
-        decks = DbContext.Decks
+        await using var context = await ContextFactory.CreateDbContextAsync();
+
+        decks = await context.Decks
+            .AsNoTracking()
             .Include(d => d.Cards)
             .Include(d => d.StudySessions)
-            .ToList();
+            .ToListAsync();
 
         deckStats = decks
             .Select(d => (d, RepetitionService.GetDeckStats(d)))
             .ToList();
 
-        recentSessions = DbContext.StudySessions
+        recentSessions = await context.StudySessions
+            .AsNoTracking()
             .Include(s => s.Deck)
             .OrderByDescending(s => s.StartedAt)
-            .ToList();
+            .ToListAsync();
 
         CalculateOverallStats();
     }
