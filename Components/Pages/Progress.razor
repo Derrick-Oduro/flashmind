@@ -10,13 +10,21 @@
 
 <PageTitle>Progress - FlashMind</PageTitle>
 
-<div class="container my-5">
-    <h1>📊 Your Progress</h1>
+<div class="app-page">
+    <div class="page-heading">
+        <div>
+            <div class="eyebrow">Your learning snapshot</div>
+            <h1>Progress</h1>
+            <p>See what is sticking and what deserves another pass.</p>
+        </div>
+    </div>
 
     @if (decks.Count == 0)
     {
-        <div class="alert alert-info">
-            <p>No decks yet. <a href="/decks" class="alert-link">Create your first deck</a> to start tracking progress!</p>
+        <div class="empty-state">
+            <div class="empty-icon">↗</div>
+            <h2>Progress starts with one deck</h2>
+            <p><a href="/decks">Create your first deck</a> to start tracking your learning.</p>
         </div>
     }
     else
@@ -50,9 +58,9 @@
         </div>
 
         <!-- Deck-by-Deck Progress -->
-        <div class="card">
+        <div class="card mb-4">
             <div class="card-header">
-                <h5 class="mb-0">Deck Performance</h5>
+                <h2 class="mb-0 fs-5">Deck performance</h2>
             </div>
             <div class="card-body">
                 <div class="table-responsive">
@@ -123,9 +131,9 @@
         </div>
 
         <!-- Activity Chart (Simple) -->
-        <div class="card mt-4">
+        <div class="card">
             <div class="card-header">
-                <h5 class="mb-0">Recent Activity</h5>
+                <h2 class="mb-0 fs-5">Recent activity</h2>
             </div>
             <div class="card-body">
                 @if (recentSessions.Count == 0)
@@ -162,28 +170,6 @@
         </div>
     }
 </div>
-
-<style>
-    .stat-card {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        padding: 2rem;
-        border-radius: 8px;
-        text-align: center;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-    }
-
-    .stat-value {
-        font-size: 2rem;
-        font-weight: bold;
-        margin-bottom: 0.5rem;
-    }
-
-    .stat-label {
-        font-size: 0.875rem;
-        opacity: 0.9;
-    }
-</style>
 
 @code {
     private List<Deck> decks = new();

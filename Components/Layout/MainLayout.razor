@@ -1,16 +1,20 @@
-﻿@inherits LayoutComponentBase
+@inherits LayoutComponentBase
 
-<div class="page">
+<div class="app-shell">
     <div class="sidebar">
         <NavMenu />
     </div>
 
-    <main>
-        <div class="top-row px-4">
-            <a href="https://learn.microsoft.com/aspnet/core/" target="_blank">About</a>
+    <main class="main-content">
+        <div class="top-row">
+            <div class="mobile-brand">
+                <span class="mobile-brand-mark">✦</span>
+                <span>FlashMind</span>
+            </div>
+            <button class="theme-toggle" @onclick="ToggleTheme" title="Toggle dark/light mode" aria-label="Toggle dark or light mode">☼</button>
         </div>
 
-        <article class="content px-4">
+        <article class="content">
             @Body
         </article>
     </main>
@@ -21,3 +25,12 @@
     <a href="." class="reload">Reload</a>
     <span class="dismiss">🗙</span>
 </div>
+
+@code {
+    private async Task ToggleTheme()
+    {
+        await JS.InvokeVoidAsync("toggleTheme");
+    }
+
+    @inject IJSRuntime JS
+}

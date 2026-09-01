@@ -1,7 +1,55 @@
-﻿@page "/"
+@page "/"
 
-<PageTitle>Home</PageTitle>
+<PageTitle>FlashMind — Study smarter</PageTitle>
 
-<h1>Hello, world!</h1>
+<div class="app-page">
+    <section class="home-hero">
+        <div class="home-copy">
+            <div class="eyebrow">Your focused learning space</div>
+            <h1>Remember more.<br /><em>Stress less.</em></h1>
+            <p>Build your own flashcard decks, make every review count, and see real progress as you study.</p>
+            <div class="hero-actions">
+                <a href="/decks" class="btn btn-primary">Create a deck <span aria-hidden="true">→</span></a>
+                <a href="/progress" class="btn btn-secondary">View progress</a>
+            </div>
+        </div>
+        <div class="hero-orbit" aria-hidden="true">
+            <div class="hero-card hero-card-main">
+                <small>Today’s review</small>
+                <h3>What is active recall?</h3>
+                <div class="progress" style="height: .5rem;"><div class="progress-bar" style="width: 68%;"></div></div>
+                <div class="mini-row mt-3"><span class="mini-dot"></span> One small step closer</div>
+            </div>
+            <div class="hero-card hero-card-mini">
+                <small>Smart schedule</small>
+                <div class="d-flex align-items-center gap-2 mt-2"><span style="font-size: 1.5rem;">✦</span><strong>Review at the right time</strong></div>
+            </div>
+        </div>
+    </section>
 
-Welcome to your new app.
+    <section class="feature-grid" aria-label="FlashMind features">
+        <article class="home-feature">
+            <div class="feature-icon">▤</div>
+            <h3>Organize your course work</h3>
+            <p>Keep every topic tidy with dedicated decks for each class, exam, or assignment.</p>
+        </article>
+        <article class="home-feature">
+            <div class="feature-icon">↻</div>
+            <h3>Review with intention</h3>
+            <p>Rate each answer honestly. Tough cards return sooner, mastered cards make room for new learning.</p>
+        </article>
+        <article class="home-feature">
+            <div class="feature-icon">↗</div>
+            <h3>See what’s sticking</h3>
+            <p>Use your dashboard to spot mastery, due cards, and the momentum you are building.</p>
+        </article>
+    </section>
+
+    <section class="how-it-works" aria-label="How FlashMind works">
+        <div class="how-step"><span class="step-number">01</span><strong>Create a deck</strong>Start with one focused topic.</div>
+        <span class="step-line" aria-hidden="true"></span>
+        <div class="how-step"><span class="step-number">02</span><strong>Add your cards</strong>Write a clear prompt and answer.</div>
+        <span class="step-line" aria-hidden="true"></span>
+        <div class="how-step"><span class="step-number">03</span><strong>Study consistently</strong>Let your ratings guide your next review.</div>
+    </section>
+</div>

@@ -1,46 +1,44 @@
-﻿<div class="top-row ps-3 navbar navbar-dark">
-    <div class="container-fluid">
-        <a class="navbar-brand" href="">📚 FlashMind</a>
-    </div>
+<div class="sidebar-brand">
+    <a href="" class="brand-link">
+        <span class="brand-mark">✦</span>
+        <span>
+            <strong>FlashMind</strong>
+            <small>Study smarter</small>
+        </span>
+    </a>
 </div>
 
-<input type="checkbox" title="Navigation menu" class="navbar-toggler" />
+<input type="checkbox" title="Navigation menu" class="navbar-toggler" aria-label="Toggle navigation menu" />
 
 <div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').click()">
-    <nav class="nav flex-column">
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
-                <span class="oi oi-home" aria-hidden="true"></span> Home
-            </NavLink>
+    <nav class="app-nav">
+        <p class="nav-label">Workspace</p>
+        <div class="nav-item">
+            <NavLink class="nav-link" href="" Match="NavLinkMatch.All"><span class="nav-icon" aria-hidden="true">⌂</span> Home</NavLink>
         </div>
-
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="decks">
-                <span class="oi oi-book" aria-hidden="true"></span> Decks
-            </NavLink>
+        <div class="nav-item">
+            <NavLink class="nav-link" href="decks"><span class="nav-icon" aria-hidden="true">▤</span> My decks</NavLink>
         </div>
-
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="progress">
-                <span class="oi oi-graph" aria-hidden="true"></span> Progress
-            </NavLink>
+        <div class="nav-item">
+            <NavLink class="nav-link" href="progress"><span class="nav-icon" aria-hidden="true">↗</span> Progress</NavLink>
         </div>
 
         <AuthorizeView>
             <Authorized>
-                <div class="nav-item px-3">
+                <div class="nav-footer">
+                    <p class="nav-label">Account</p>
                     <form method="post" action="/account/logout">
                         <AntiforgeryToken />
-                        <button type="submit" class="nav-link btn btn-link border-0 p-0">Sign out</button>
+                        <button type="submit" class="nav-link nav-sign-out"><span class="nav-icon" aria-hidden="true">⇥</span> Sign out</button>
                     </form>
                 </div>
             </Authorized>
             <NotAuthorized>
-                <div class="nav-item px-3">
-                    <NavLink class="nav-link" href="login">Sign in</NavLink>
+                <div class="nav-footer">
+                    <p class="nav-label">Account</p>
+                    <NavLink class="nav-link" href="login"><span class="nav-icon" aria-hidden="true">⇥</span> Sign in</NavLink>
                 </div>
             </NotAuthorized>
         </AuthorizeView>
     </nav>
 </div>
-

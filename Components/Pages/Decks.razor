@@ -13,19 +13,23 @@
 
 <PageTitle>Decks - FlashMind</PageTitle>
 
-<div class="container my-5">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1>📚 My Decks</h1>
+<div class="app-page decks-page">
+    <div class="page-heading">
+        <div>
+        <div class="eyebrow">Your library</div>
+        <h1>My decks</h1>
+        <p>Create focused sets, then return to the cards that need your attention.</p>
+        </div>
         <button class="btn btn-primary" @onclick="ToggleForm">
-            <span class="oi oi-plus"></span> New Deck
+            <span aria-hidden="true">+</span> New deck
         </button>
     </div>
 
     @if (isFormVisible)
     {
-        <div class="card mb-4 border-primary">
-            <div class="card-header bg-primary text-white">
-                <h5 class="mb-0">Create New Deck</h5>
+        <div class="surface-card deck-form-panel">
+            <div class="deck-form-heading">
+                <span aria-hidden="true">✦</span><h2>Create a new deck</h2>
             </div>
             <div class="card-body">
                 <div class="mb-3">
@@ -37,7 +41,7 @@
                     <textarea class="form-control" @bind="formDescription" rows="2" placeholder="Brief description..."></textarea>
                 </div>
                 <button class="btn btn-success me-2" @onclick="CreateDeckAsync" disabled="@isLoading">
-                    @if (isLoading) { <span>Creating...</span> } else { <span>✓ Create</span> }
+                    @if (isLoading) { <span>Creating...</span> } else { <span>Create deck</span> }
                 </button>
                 <button class="btn btn-secondary" @onclick="ToggleForm" disabled="@isLoading">Cancel</button>
             </div>
@@ -62,55 +66,51 @@
 
     @if (decks.Count == 0)
     {
-        <div class="alert alert-info">
-            <h5>📝 No decks yet</h5>
-            <p>Click "New Deck" to create your first flashcard collection!</p>
+        <div class="empty-state">
+            <div class="empty-icon">▤</div>
+            <h2>Your library is ready</h2>
+            <p class="mb-3">Create your first deck and turn your notes into a study routine.</p>
+            <button class="btn btn-primary" @onclick="ToggleForm">Create your first deck</button>
         </div>
     }
     else
     {
-        <div class="row">
+        <div class="deck-grid">
             @foreach (var deck in decks)
             {
                 var stats = RepetitionService.GetDeckStats(deck);
-                <div class="col-md-6 col-lg-4 mb-4">
-                    <div class="card h-100">
+                <div>
+                    <div class="card deck-card">
                         <div class="card-body">
-                            <h5 class="card-title">@deck.Title</h5>
+                            <div class="deck-card-title-row">
+                                <span class="deck-icon" aria-hidden="true">▤</span>
+                                <h2>@deck.Title</h2>
+                            </div>
                             @if (!string.IsNullOrEmpty(deck.Description))
                             {
-                                <p class="card-text small text-muted">@deck.Description</p>
+                                <p class="deck-description">@deck.Description</p>
                             }
+                            else { <p class="deck-description">A focused set of cards ready for your next review.</p> }
 
-                            <div class="mb-3">
-                                <div class="row text-center small">
-                                    <div class="col-4">
-                                        <small class="text-muted">Cards</small><br/><strong>@stats.TotalCards</strong>
-                                    </div>
-                                    <div class="col-4">
-                                        <small class="text-muted">Due</small><br/><strong>@stats.DueCards</strong>
-                                    </div>
-                                    <div class="col-4">
-                                        <small class="text-muted">Mastered</small><br/><strong>@Math.Round(stats.MasteryPercentage)%</strong>
-                                    </div>
-                                </div>
+                            <div class="deck-stats">
+                                <div class="deck-stat"><span>Cards</span><strong>@stats.TotalCards</strong></div>
+                                <div class="deck-stat"><span>Due</span><strong>@stats.DueCards</strong></div>
+                                <div class="deck-stat"><span>Mastery</span><strong>@Math.Round(stats.MasteryPercentage)%</strong></div>
                             </div>
 
-                            <div class="progress mb-3" style="height: 25px;">
+                            <div class="deck-progress">
                                 @{ var pct = Math.Round(stats.MasteryPercentage); }
-                                <div class="progress-bar bg-success" role="progressbar" 
-                                     style="width: @pct%"
-                                     aria-valuenow="@((int)pct)" 
-                                     aria-valuemin="0" aria-valuemax="100">
-                                    @pct%
+                                <div class="deck-progress-label"><span>Mastery progress</span><span>@pct%</span></div>
+                                <div class="progress" style="height: .5rem;">
+                                    <div class="progress-bar" role="progressbar" style="width: @pct%" aria-valuenow="@((int)pct)" aria-valuemin="0" aria-valuemax="100"></div>
                                 </div>
                             </div>
                         </div>
-                        <div class="card-footer bg-transparent">
+                        <div class="card-footer deck-actions">
                             <button class="btn btn-sm btn-primary" @onclick="@((e) => StudyDeck(deck.Id))">
                                 Study
                             </button>
-                            <button class="btn btn-sm btn-info" @onclick="@((e) => EditDeck(deck.Id))">
+                            <button class="btn btn-sm btn-secondary" @onclick="@((e) => EditDeck(deck.Id))">
                                 Edit
                             </button>
                             <button class="btn btn-sm btn-danger" @onclick="() => DeleteDeckAsync(deck.Id)">
