@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.FileProviders;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -99,6 +100,8 @@ app.UseAuthorization();
 
 app.UseStaticFiles();
 app.MapStaticAssets();
+app.MapGet("/_framework/blazor.server.js", (IWebHostEnvironment environment) =>
+    Results.File(Path.Combine(environment.WebRootPath ?? Path.Combine(environment.ContentRootPath, "wwwroot"), "_framework", "blazor.server.js"), "text/javascript"));
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
