@@ -1,0 +1,45 @@
+@page "/deck/{DeckId:int}/cards/new"
+@attribute [Authorize]
+
+<PageTitle>New card - FlashMind</PageTitle>
+
+<div class="app-page" style="max-width: 760px;">
+    <div class="page-heading">
+        <div>
+            <div class="eyebrow">Deck editor</div>
+            <h1>Add a card</h1>
+            <p>Write a prompt and answer for this deck.</p>
+        </div>
+        <a class="btn btn-secondary" href="/deck/@DeckId/edit">Back to deck</a>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            <form method="post" action="/deck/@DeckId/cards/create">
+                <AntiforgeryToken />
+                <div class="mb-3">
+                    <label class="form-label" for="question">Question</label>
+                    <textarea id="question" class="form-control" name="Question" rows="3" required></textarea>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" for="answer">Answer</label>
+                    <textarea id="answer" class="form-control" name="Answer" rows="3" required></textarea>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" for="hint">Hint (optional)</label>
+                    <input id="hint" class="form-control" name="Hint" type="text" />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" for="explanation">Explanation (optional)</label>
+                    <textarea id="explanation" class="form-control" name="Explanation" rows="3"></textarea>
+                </div>
+                <button class="btn btn-success" type="submit">Add card</button>
+            </form>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public int DeckId { get; set; }
+}

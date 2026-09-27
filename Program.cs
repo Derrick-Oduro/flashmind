@@ -127,6 +127,55 @@ app.MapPost("/decks/create", async (HttpContext httpContext, IAntiforgery antifo
     return Results.LocalRedirect("/decks");
 }).RequireAuthorization();
 
+app.MapPost("/decks/{deckId:int}/delete", async (int deckId, HttpContext httpContext, IAntiforgery antiforgery, IDbContextFactory<FlashmindsContext> contextFactory) =>
+{
+    if (!await IsAntiforgeryValidAsync(httpContext, antiforgery))
+        return Results.BadRequest();
+
+    var userId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
+    await using var context = await contextFactory.CreateDbContextAsync();
+    var deck = await context.Decks.FirstOrDefaultAsync(item => item.Id == deckId && item.OwnerId == userId);
+    if (deck is not null)
+    {
+        context.Decks.Remove(deck);
+        await context.SaveChangesAsync();
+    }
+
+    return Results.LocalRedirect("/decks");
+}).RequireAuthorization();
+
+app.MapPost("/deck/{deckId:int}/cards/create", async (int deckId, HttpContext httpContext, IAntiforgery antiforgery, IDbContextFactory<FlashmindsContext> contextFactory) =>
+{
+    if (!await IsAntiforgeryValidAsync(httpContext, antiforgery))
+        return Results.BadRequest();
+
+    var form = await httpContext.Request.ReadFormAsync();
+    var question = form["Question"].ToString().Trim();
+    var answer = form["Answer"].ToString().Trim();
+    if (string.IsNullOrWhiteSpace(question) || string.IsNullOrWhiteSpace(answer))
+        return Results.LocalRedirect($"/deck/{deckId}/cards/new");
+
+    var userId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
+    await using var context = await contextFactory.CreateDbContextAsync();
+    var ownsDeck = await context.Decks.AnyAsync(item => item.Id == deckId && item.OwnerId == userId);
+    if (ownsDeck)
+    {
+        context.Cards.Add(new Card
+        {
+            DeckId = deckId,
+            Question = question,
+            Answer = answer,
+            Hint = string.IsNullOrWhiteSpace(form["Hint"]) ? null : form["Hint"].ToString().Trim(),
+            Explanation = string.IsNullOrWhiteSpace(form["Explanation"]) ? null : form["Explanation"].ToString().Trim(),
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        });
+        await context.SaveChangesAsync();
+    }
+
+    return Results.LocalRedirect($"/deck/{deckId}/edit");
+}).RequireAuthorization();
+
 app.MapPost("/account/login", async (HttpContext httpContext, IAntiforgery antiforgery, SignInManager<IdentityUser> signInManager) =>
 {
     if (!await IsAntiforgeryValidAsync(httpContext, antiforgery))

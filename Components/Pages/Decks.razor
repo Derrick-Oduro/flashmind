@@ -107,15 +107,16 @@
                             </div>
                         </div>
                         <div class="card-footer deck-actions">
-                            <button class="btn btn-sm btn-primary" @onclick="@((e) => StudyDeck(deck.Id))">
+                            <a class="btn btn-sm btn-primary" href="/study/@deck.Id">
                                 Study
-                            </button>
-                            <button class="btn btn-sm btn-secondary" @onclick="@((e) => EditDeck(deck.Id))">
+                            </a>
+                            <a class="btn btn-sm btn-secondary" href="/deck/@deck.Id/edit">
                                 Edit
-                            </button>
-                            <button class="btn btn-sm btn-danger" @onclick="() => DeleteDeckAsync(deck.Id)">
-                                Delete
-                            </button>
+                            </a>
+                            <form method="post" action="/decks/@deck.Id/delete" class="d-inline">
+                                <AntiforgeryToken />
+                                <button class="btn btn-sm btn-danger" type="submit">Delete</button>
+                            </form>
                         </div>
                     </div>
                 </div>
