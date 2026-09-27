@@ -1,0 +1,52 @@
+@page "/simple-test"
+
+<PageTitle>Simple Test</PageTitle>
+
+<div class="container my-5">
+    <h1>🧪 Super Simple Test</h1>
+
+    <div class="card">
+        <div class="card-body">
+            <h5>Test 1: Button Click Counter</h5>
+            <p>Click count: <strong>@clickCount</strong></p>
+            <button class="btn btn-primary" @onclick="IncrementCounter">Click Me</button>
+        </div>
+    </div>
+
+    <div class="card mt-3">
+        <div class="card-body">
+            <h5>Test 2: Text Input</h5>
+            <input type="text" class="form-control" @bind="inputText" placeholder="Type something..." />
+            <p class="mt-2">You typed: <strong>@inputText</strong></p>
+        </div>
+    </div>
+
+    <div class="card mt-3">
+        <div class="card-body">
+            <h5>Test 3: Toggle Visibility</h5>
+            <button class="btn btn-secondary" @onclick="ToggleBox">Toggle Box</button>
+            @if (showBox)
+            {
+                <div class="alert alert-success mt-3">Box is visible!</div>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private int clickCount = 0;
+    private string inputText = "";
+    private bool showBox = false;
+
+    private void IncrementCounter()
+    {
+        clickCount++;
+        Console.WriteLine($"Click count: {clickCount}");
+    }
+
+    private void ToggleBox()
+    {
+        showBox = !showBox;
+        Console.WriteLine($"Box visible: {showBox}");
+    }
+}

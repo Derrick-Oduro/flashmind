@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: flashminds
+    runtime: docker
+    plan: starter
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      - key: ConnectionStrings__DefaultConnection
+        value: Data Source=/data/flashminds.db
+      - key: ConnectionStrings__AuthConnection
+        value: Data Source=/data/flashminds-auth.db
+      - key: LegacyDeckOwnerEmail
+        value: ""
+    disk:
+      name: flashminds-data
+      mountPath: /data
+      sizeGB: 1

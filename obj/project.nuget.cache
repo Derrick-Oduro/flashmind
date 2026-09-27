@@ -1,35 +1,23 @@
 {
   "version": 2,
-  "dgSpecHash": "FiHRsx5KWWE=",
+  "dgSpecHash": "n9JrbugMFMg=",
   "success": true,
   "projectFilePath": "D:\\Produtive HUB\\Programing\\Flashminds\\Flashminds\\Flashminds.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\derek\\.nuget\\packages\\microsoft.aspnetcore.app.internal.assets\\10.0.9\\microsoft.aspnetcore.app.internal.assets.10.0.9.nupkg.sha512",
-    "C:\\Users\\derek\\.nuget\\packages\\microsoft.data.sqlite.core\\8.0.8\\microsoft.data.sqlite.core.8.0.8.nupkg.sha512",
-    "C:\\Users\\derek\\.nuget\\packages\\microsoft.entityframeworkcore\\8.0.8\\microsoft.entityframeworkcore.8.0.8.nupkg.sha512",
-    "C:\\Users\\derek\\.nuget\\packages\\microsoft.entityframeworkcore.abstractions\\8.0.8\\microsoft.entityframeworkcore.abstractions.8.0.8.nupkg.sha512",
-    "C:\\Users\\derek\\.nuget\\packages\\microsoft.entityframeworkcore.analyzers\\8.0.8\\microsoft.entityframeworkcore.analyzers.8.0.8.nupkg.sha512",
-    "C:\\Users\\derek\\.nuget\\packages\\microsoft.entityframeworkcore.relational\\8.0.8\\microsoft.entityframeworkcore.relational.8.0.8.nupkg.sha512",
-    "C:\\Users\\derek\\.nuget\\packages\\microsoft.entityframeworkcore.sqlite\\8.0.8\\microsoft.entityframeworkcore.sqlite.8.0.8.nupkg.sha512",
-    "C:\\Users\\derek\\.nuget\\packages\\microsoft.entityframeworkcore.sqlite.core\\8.0.8\\microsoft.entityframeworkcore.sqlite.core.8.0.8.nupkg.sha512",
-    "C:\\Users\\derek\\.nuget\\packages\\microsoft.extensions.dependencymodel\\8.0.1\\microsoft.extensions.dependencymodel.8.0.1.nupkg.sha512",
+    "C:\\Users\\derek\\.nuget\\packages\\microsoft.aspnetcore.identity.entityframeworkcore\\8.0.11\\microsoft.aspnetcore.identity.entityframeworkcore.8.0.11.nupkg.sha512",
+    "C:\\Users\\derek\\.nuget\\packages\\microsoft.data.sqlite.core\\8.0.11\\microsoft.data.sqlite.core.8.0.11.nupkg.sha512",
+    "C:\\Users\\derek\\.nuget\\packages\\microsoft.entityframeworkcore\\8.0.11\\microsoft.entityframeworkcore.8.0.11.nupkg.sha512",
+    "C:\\Users\\derek\\.nuget\\packages\\microsoft.entityframeworkcore.abstractions\\8.0.11\\microsoft.entityframeworkcore.abstractions.8.0.11.nupkg.sha512",
+    "C:\\Users\\derek\\.nuget\\packages\\microsoft.entityframeworkcore.analyzers\\8.0.11\\microsoft.entityframeworkcore.analyzers.8.0.11.nupkg.sha512",
+    "C:\\Users\\derek\\.nuget\\packages\\microsoft.entityframeworkcore.relational\\8.0.11\\microsoft.entityframeworkcore.relational.8.0.11.nupkg.sha512",
+    "C:\\Users\\derek\\.nuget\\packages\\microsoft.entityframeworkcore.sqlite\\8.0.11\\microsoft.entityframeworkcore.sqlite.8.0.11.nupkg.sha512",
+    "C:\\Users\\derek\\.nuget\\packages\\microsoft.entityframeworkcore.sqlite.core\\8.0.11\\microsoft.entityframeworkcore.sqlite.core.8.0.11.nupkg.sha512",
+    "C:\\Users\\derek\\.nuget\\packages\\microsoft.extensions.dependencymodel\\8.0.2\\microsoft.extensions.dependencymodel.8.0.2.nupkg.sha512",
     "C:\\Users\\derek\\.nuget\\packages\\sqlitepclraw.bundle_e_sqlite3\\2.1.6\\sqlitepclraw.bundle_e_sqlite3.2.1.6.nupkg.sha512",
     "C:\\Users\\derek\\.nuget\\packages\\sqlitepclraw.core\\2.1.6\\sqlitepclraw.core.2.1.6.nupkg.sha512",
-    "C:\\Users\\derek\\.nuget\\packages\\sqlitepclraw.lib.e_sqlite3\\2.1.6\\sqlitepclraw.lib.e_sqlite3.2.1.6.nupkg.sha512",
+    "C:\\Users\\derek\\.nuget\\packages\\sqlitepclraw.lib.e_sqlite3\\3.53.3\\sqlitepclraw.lib.e_sqlite3.3.53.3.nupkg.sha512",
     "C:\\Users\\derek\\.nuget\\packages\\sqlitepclraw.provider.e_sqlite3\\2.1.6\\sqlitepclraw.provider.e_sqlite3.2.1.6.nupkg.sha512"
   ],
-  "logs": [
-    {
-      "code": "NU1903",
-      "level": "Warning",
-      "message": "Package 'SQLitePCLRaw.lib.e_sqlite3' 2.1.6 has a known high severity vulnerability, https://github.com/advisories/GHSA-2m69-gcr7-jv3q",
-      "projectPath": "D:\\Produtive HUB\\Programing\\Flashminds\\Flashminds\\Flashminds.csproj",
-      "warningLevel": 1,
-      "filePath": "D:\\Produtive HUB\\Programing\\Flashminds\\Flashminds\\Flashminds.csproj",
-      "libraryId": "SQLitePCLRaw.lib.e_sqlite3",
-      "targetGraphs": [
-        "net10.0"
-      ]
-    }
-  ]
+  "logs": []
 }

@@ -2,10 +2,18 @@ using Flashminds.Components;
 using Flashminds.Data;
 using Flashminds.Services;
 using Microsoft.AspNetCore.Antiforgery;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.KnownNetworks.Clear();
+    options.KnownProxies.Clear();
+});
 
 // Add services to the container.
 builder.Services.AddRazorComponents()
@@ -46,6 +54,8 @@ builder.Services.AddScoped<DeckService>();
 
 var app = builder.Build();
 
+app.UseForwardedHeaders();
+
 // Initialize database on startup
 {
     var contextFactory = app.Services.GetRequiredService<IDbContextFactory<FlashmindsContext>>();
@@ -79,11 +89,9 @@ var app = builder.Build();
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Error", createScopeForErrors: true);
-    // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
     app.UseHsts();
 }
 app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
-app.UseHttpsRedirection();
 
 app.UseAntiforgery();
 app.UseAuthentication();
