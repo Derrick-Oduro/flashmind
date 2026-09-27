@@ -62,14 +62,14 @@ app.UseForwardedHeaders();
     var context = contextFactory.CreateDbContextAsync().GetAwaiter().GetResult();
     using (context)
     {
-        context.Database.EnsureCreated();
+        await MigrateOrBaselineSqliteAsync(context);
         await EnsureDeckOwnerColumnAsync(context);
         await EnsureCardCreationColumnsAsync(context);
     }
 
     using var scope = app.Services.CreateScope();
     var authContext = scope.ServiceProvider.GetRequiredService<AuthContext>();
-    authContext.Database.EnsureCreated();
+    await MigrateOrBaselineSqliteAsync(authContext);
 
     var legacyOwnerEmail = app.Configuration["LegacyDeckOwnerEmail"];
     if (!string.IsNullOrWhiteSpace(legacyOwnerEmail))
@@ -169,6 +169,67 @@ static async Task<bool> IsAntiforgeryValidAsync(HttpContext httpContext, IAntifo
     catch (AntiforgeryValidationException)
     {
         return false;
+    }
+}
+
+static async Task MigrateOrBaselineSqliteAsync(DbContext context)
+{
+    var connection = context.Database.GetDbConnection();
+    await connection.OpenAsync();
+    try
+    {
+        await using var tablesCommand = connection.CreateCommand();
+        tablesCommand.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'";
+        var hasTables = Convert.ToInt32(await tablesCommand.ExecuteScalarAsync()) > 0;
+
+        await using var historyCommand = connection.CreateCommand();
+        historyCommand.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = '__EFMigrationsHistory'";
+        var hasMigrationHistory = Convert.ToInt32(await historyCommand.ExecuteScalarAsync()) > 0;
+
+        if (!hasTables || hasMigrationHistory)
+        {
+            await connection.CloseAsync();
+            await context.Database.MigrateAsync();
+            return;
+        }
+    }
+    finally
+    {
+        if (connection.State == System.Data.ConnectionState.Open)
+            await connection.CloseAsync();
+    }
+
+    await context.Database.EnsureCreatedAsync();
+    var initialMigration = context.Database.GetMigrations().First();
+    var productVersion = context.Model.FindAnnotation("ProductVersion")?.Value?.ToString() ?? "8.0.11";
+
+    await connection.OpenAsync();
+    try
+    {
+        await using var createHistoryCommand = connection.CreateCommand();
+        createHistoryCommand.CommandText = """
+            CREATE TABLE IF NOT EXISTS "__EFMigrationsHistory" (
+                "MigrationId" TEXT NOT NULL CONSTRAINT "PK___EFMigrationsHistory" PRIMARY KEY,
+                "ProductVersion" TEXT NOT NULL
+            )
+            """;
+        await createHistoryCommand.ExecuteNonQueryAsync();
+
+        await using var insertHistoryCommand = connection.CreateCommand();
+        insertHistoryCommand.CommandText = "INSERT OR IGNORE INTO \"__EFMigrationsHistory\" (\"MigrationId\", \"ProductVersion\") VALUES ($migrationId, $productVersion)";
+        var migrationParameter = insertHistoryCommand.CreateParameter();
+        migrationParameter.ParameterName = "$migrationId";
+        migrationParameter.Value = initialMigration;
+        insertHistoryCommand.Parameters.Add(migrationParameter);
+        var versionParameter = insertHistoryCommand.CreateParameter();
+        versionParameter.ParameterName = "$productVersion";
+        versionParameter.Value = productVersion;
+        insertHistoryCommand.Parameters.Add(versionParameter);
+        await insertHistoryCommand.ExecuteNonQueryAsync();
+    }
+    finally
+    {
+        await connection.CloseAsync();
     }
 }
 
