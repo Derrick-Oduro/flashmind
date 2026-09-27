@@ -20,9 +20,9 @@
         <h1>My decks</h1>
         <p>Create focused sets, then return to the cards that need your attention.</p>
         </div>
-        <button class="btn btn-primary" @onclick="ToggleForm">
+        <a class="btn btn-primary" href="/decks/new">
             <span aria-hidden="true">+</span> New deck
-        </button>
+        </a>
     </div>
 
     @if (isFormVisible)
@@ -70,7 +70,7 @@
             <div class="empty-icon">▤</div>
             <h2>Your library is ready</h2>
             <p class="mb-3">Create your first deck and turn your notes into a study routine.</p>
-            <button class="btn btn-primary" @onclick="ToggleForm">Create your first deck</button>
+            <a class="btn btn-primary" href="/decks/new">Create your first deck</a>
         </div>
     }
     else

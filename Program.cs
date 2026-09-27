@@ -1,11 +1,12 @@
+using System.Security.Claims;
 using Flashminds.Components;
 using Flashminds.Data;
+using Flashminds.Models;
 using Flashminds.Services;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.FileProviders;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -100,10 +101,31 @@ app.UseAuthorization();
 
 app.UseStaticFiles();
 app.MapStaticAssets();
-app.MapGet("/_framework/blazor.server.js", (IWebHostEnvironment environment) =>
-    Results.File(Path.Combine(environment.WebRootPath ?? Path.Combine(environment.ContentRootPath, "wwwroot"), "_framework", "blazor.server.js"), "text/javascript"));
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
+
+app.MapPost("/decks/create", async (HttpContext httpContext, IAntiforgery antiforgery, IDbContextFactory<FlashmindsContext> contextFactory) =>
+{
+    if (!await IsAntiforgeryValidAsync(httpContext, antiforgery))
+        return Results.BadRequest();
+
+    var form = await httpContext.Request.ReadFormAsync();
+    var title = form["Title"].ToString().Trim();
+    if (string.IsNullOrWhiteSpace(title))
+        return Results.LocalRedirect("/decks/new");
+
+    await using var context = await contextFactory.CreateDbContextAsync();
+    context.Decks.Add(new Deck
+    {
+        Title = title,
+        Description = form["Description"].ToString().Trim(),
+        OwnerId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier),
+        CreatedAt = DateTime.UtcNow,
+        UpdatedAt = DateTime.UtcNow
+    });
+    await context.SaveChangesAsync();
+    return Results.LocalRedirect("/decks");
+}).RequireAuthorization();
 
 app.MapPost("/account/login", async (HttpContext httpContext, IAntiforgery antiforgery, SignInManager<IdentityUser> signInManager) =>
 {

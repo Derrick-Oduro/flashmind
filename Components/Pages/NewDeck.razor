@@ -1,0 +1,32 @@
+@page "/decks/new"
+@attribute [Authorize]
+
+<PageTitle>New deck - FlashMind</PageTitle>
+
+<div class="app-page" style="max-width: 680px;">
+    <div class="page-heading">
+        <div>
+            <div class="eyebrow">Your library</div>
+            <h1>Create a new deck</h1>
+            <p>Give your study set a clear name so it is easy to find later.</p>
+        </div>
+        <a class="btn btn-secondary" href="/decks">Cancel</a>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            <form method="post" action="/decks/create">
+                <AntiforgeryToken />
+                <div class="mb-3">
+                    <label class="form-label" for="deck-title">Deck title</label>
+                    <input id="deck-title" class="form-control" name="Title" type="text" placeholder="e.g., Spanish Vocabulary" required autofocus />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" for="deck-description">Description (optional)</label>
+                    <textarea id="deck-description" class="form-control" name="Description" rows="3" placeholder="Brief description..."></textarea>
+                </div>
+                <button class="btn btn-success" type="submit">Create deck</button>
+            </form>
+        </div>
+    </div>
+</div>
