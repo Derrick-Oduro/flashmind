@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("Flashminds")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Release")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+edc668a58999b5e7f9bcadbfec073ce608f78fbf")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+367332f7f0334aa606e11c91db6f9d5314dd123c")]
 [assembly: System.Reflection.AssemblyProductAttribute("Flashminds")]
 [assembly: System.Reflection.AssemblyTitleAttribute("Flashminds")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
