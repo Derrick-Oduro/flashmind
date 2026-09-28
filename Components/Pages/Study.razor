@@ -44,8 +44,10 @@
                 </div>
 
                 <div class="card-study mb-4">
-                    <div class="card-container" @onclick="() => isFlipped = !isFlipped" tabindex="0" role="button" @onkeydown="HandleCardKeydown" aria-label="Reveal or hide answer">
-                        <div class="card-face front @(isFlipped ? "hidden" : "")">
+                    <div class="card-container" @onclick="ToggleCard" tabindex="0" role="button" @onkeydown="HandleCardKeydown" aria-label="Reveal or hide answer">
+                        @if (!isFlipped)
+                        {
+                        <div class="card-face front">
                             <div class="card-label">@(IsCloze(currentCard) ? "Fill in the blank" : "Question")</div>
                             <div class="card-content">@(IsCloze(currentCard) ? ClozePrompt(currentCard.Question) : currentCard.Question)</div>
                             @if (!string.IsNullOrWhiteSpace(currentCard.Hint))
@@ -62,7 +64,10 @@
                                 <div class="card-hint">Click to reveal answer</div>
                             }
                         </div>
-                        <div class="card-face back @(!isFlipped ? "hidden" : "")">
+                        }
+                        else
+                        {
+                        <div class="card-face back">
                             <div class="card-label">Answer</div>
                             <div class="card-content">@(IsCloze(currentCard) ? ClozeAnswer(currentCard) : currentCard.Answer)</div>
                             @if (IsCloze(currentCard) && !string.IsNullOrWhiteSpace(typedAnswer))
@@ -75,6 +80,7 @@
                             }
                             <div class="card-hint">Click to hide answer</div>
                         </div>
+                        }
                     </div>
                 </div>
 
@@ -136,11 +142,16 @@
     private StudySession? studySession;
     private string? userId;
 
+    private void ToggleCard()
+    {
+        isFlipped = !isFlipped;
+    }
+
     private void HandleCardKeydown(KeyboardEventArgs args)
     {
         if (args.Key is "Enter" or " ")
         {
-            isFlipped = !isFlipped;
+            ToggleCard();
         }
     }
 
