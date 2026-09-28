@@ -1,4 +1,5 @@
 @page "/study/{DeckId:int}"
+@page "/study/{DeckId:int}/reveal"
 @rendermode InteractiveServer
 @attribute [Authorize]
 @using Flashminds.Data
@@ -62,7 +63,7 @@
                             }
                             else
                             {
-                                <div class="card-hint">Click to reveal answer</div>
+                                <a class="btn btn-primary mt-3" href="/study/@DeckId/reveal">Reveal answer</a>
                             }
                         </div>
                         }
@@ -174,6 +175,7 @@
 
     protected override async Task OnInitializedAsync()
     {
+        isFlipped = Navigation.Uri.TrimEnd('/').EndsWith("/reveal", StringComparison.OrdinalIgnoreCase);
         userId = (await AuthenticationStateProvider.GetAuthenticationStateAsync()).User.FindFirstValue(ClaimTypes.NameIdentifier);
         await LoadStudyCardsAsync();
     }
