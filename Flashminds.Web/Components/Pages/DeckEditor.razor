@@ -1,0 +1,323 @@
+@page "/deck/{DeckId:int}/edit"
+@attribute [Authorize]
+@inject ApiClient Api
+@inject NavigationManager Navigation
+
+<PageTitle>Edit Deck - FlashMind</PageTitle>
+
+<div class="app-page">
+    @if (deck == null)
+    {
+        <div class="alert alert-info">Loading deck...</div>
+    }
+    else
+    {
+        <div class="page-heading">
+            <div>
+                <div class="eyebrow">Deck editor</div>
+                <h1>@deck.Title</h1>
+                <p>Refine your deck, then add the cards that will make it useful.</p>
+            </div>
+            <a href="/decks" class="btn btn-secondary">Back to decks</a>
+        </div>
+
+        <div class="row">
+            <div class="col-md-8">
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <h2 class="fs-5 mb-4">Deck information</h2>
+                        <div class="mb-3">
+                            <label class="form-label">Title</label>
+                            <input type="text" class="form-control" @bind="deckTitle" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Description</label>
+                            <textarea class="form-control" @bind="deckDescription" rows="3"></textarea>
+                        </div>
+                        <button class="btn btn-success me-2" @onclick="SaveDeckAsync">Save</button>
+                        <a href="/decks" class="btn btn-secondary">Cancel</a>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-body">
+                        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+                            <h2 class="fs-5 mb-0">Cards (@deck.Cards.Count)</h2>
+                            <div class="d-flex gap-2">
+                                <button class="btn btn-sm btn-secondary" @onclick="ToggleImportForm">Import cards</button>
+                                <a class="btn btn-sm btn-primary" href="/deck/@DeckId/cards/new">+ Add Card</a>
+                            </div>
+                        </div>
+
+                        @if (!string.IsNullOrWhiteSpace(actionError))
+                        {
+                            <div class="alert alert-danger">@actionError</div>
+                        }
+
+                        @if (showAddForm)
+                        {
+                            <div class="alert alert-info mb-3">
+                                <div class="mb-2">
+                                    <label>Card type</label>
+                                    <select class="form-select" @bind="newCardType">
+                                        <option value="Basic">Basic — question and answer</option>
+                                        <option value="Cloze">Fill in the blank — cloze</option>
+                                    </select>
+                                </div>
+                                <div class="mb-2">
+                                    <label>@(newCardType == "Cloze" ? "Sentence with a blank" : "Question")</label>
+                                    <textarea class="form-control" @bind="newQuestion" rows="2" placeholder="@(newCardType == "Cloze" ? "The capital of France is {{c1::Paris}}." : "Ask a clear question")"></textarea>
+                                </div>
+                                <div class="mb-2">
+                                    <label>Answer @(newCardType == "Cloze" ? "(optional — taken from {{c1::...}})" : "")</label>
+                                    <textarea class="form-control" @bind="newAnswer" rows="2" placeholder="@(newCardType == "Cloze" ? "Optional fallback answer" : "Write the answer")"></textarea>
+                                </div>
+                                <div class="mb-2"><label>Hint (optional)</label><input class="form-control" @bind="newHint" placeholder="A small nudge before revealing the answer" /></div>
+                                <div class="mb-2"><label>Explanation (optional)</label><textarea class="form-control" @bind="newExplanation" rows="2" placeholder="Extra context shown with the answer"></textarea></div>
+                                <button class="btn btn-sm btn-success me-2" @onclick="AddCardAsync">Add</button>
+                                <button class="btn btn-sm btn-secondary" @onclick="ResetAddForm">Cancel</button>
+                            </div>
+                        }
+
+                        @if (showImportForm)
+                        {
+                            <div class="alert alert-info mb-3">
+                                <h3 class="fs-6">Import cards from text or CSV</h3>
+                                <p class="small text-muted">Paste one card per line using a pipe, tab, or comma between the question and answer. Example: <code>What is active recall? | Retrieving information from memory</code></p>
+                                <textarea class="form-control mb-2" @bind="importText" rows="7" placeholder="Question | Answer&#10;Another question | Another answer"></textarea>
+                                <button class="btn btn-sm btn-success me-2" @onclick="ImportCardsAsync">Import cards</button>
+                                <button class="btn btn-sm btn-secondary" @onclick="ToggleImportForm">Cancel</button>
+                                @if (!string.IsNullOrWhiteSpace(importMessage))
+                                {
+                                    <p class="text-success small mt-2 mb-0">@importMessage</p>
+                                }
+                                @if (!string.IsNullOrWhiteSpace(importError))
+                                {
+                                    <p class="text-danger small mt-2 mb-0">@importError</p>
+                                }
+                            </div>
+                        }
+
+                        @if (editingCardId is not null)
+                        {
+                            <div class="alert alert-info mb-3">
+                                <h3 class="fs-6">Edit card</h3>
+                                <div class="mb-2"><label>Card type</label><select class="form-select" @bind="editCardType"><option value="Basic">Basic — question and answer</option><option value="Cloze">Fill in the blank — cloze</option></select></div>
+                                <div class="mb-2"><label>@(editCardType == "Cloze" ? "Sentence with a blank" : "Question")</label><textarea class="form-control" @bind="editQuestion" rows="2"></textarea></div>
+                                <div class="mb-2"><label>Answer @(editCardType == "Cloze" ? "(optional — taken from {{c1::...}})" : "")</label><textarea class="form-control" @bind="editAnswer" rows="2"></textarea></div>
+                                <div class="mb-2"><label>Hint (optional)</label><input class="form-control" @bind="editHint" /></div>
+                                <div class="mb-2"><label>Explanation (optional)</label><textarea class="form-control" @bind="editExplanation" rows="2"></textarea></div>
+                                <button class="btn btn-sm btn-success me-2" @onclick="SaveCardAsync">Save card</button><button class="btn btn-sm btn-secondary" @onclick="CancelCardEdit">Cancel</button>
+                            </div>
+                        }
+
+                        @if (deck.Cards.Count == 0)
+                        {
+                            <p class="text-muted">No cards yet</p>
+                        }
+                        else
+                        {
+                            <table class="table table-sm">
+                                <tr>
+                                    <th>Q</th>
+                                    <th>A</th>
+                                    <th>Type</th>
+                                    <th></th>
+                                </tr>
+                                @foreach (var card in deck.Cards)
+                                {
+                                    <tr>
+                                        <td>@card.Question.Substring(0, Math.Min(30, card.Question.Length))</td>
+                                        <td>@card.Answer.Substring(0, Math.Min(30, card.Answer.Length))</td>
+                                        <td><span class="badge bg-secondary">@card.CardType</span></td>
+                                        <td>
+                                            <button class="btn btn-sm btn-secondary me-1" @onclick="() => StartCardEdit(card)">Edit</button>
+                                            <button class="btn btn-sm btn-danger" @onclick="() => DeleteCardAsync(card.Id)">X</button>
+                                        </td>
+                                    </tr>
+                                }
+                            </table>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public int DeckId { get; set; }
+
+    private DeckDetailDto? deck;
+    private string deckTitle = "";
+    private string deckDescription = "";
+    private bool showAddForm = false;
+    private bool showImportForm = false;
+    private string newQuestion = "";
+    private string newAnswer = "";
+    private string newCardType = "Basic";
+    private string newHint = "";
+    private string newExplanation = "";
+    private int? editingCardId;
+    private string editQuestion = "";
+    private string editAnswer = "";
+    private string editCardType = "Basic";
+    private string editHint = "";
+    private string editExplanation = "";
+    private string importText = "";
+    private string importMessage = "";
+    private string importError = "";
+    private string actionError = "";
+
+    protected override async Task OnInitializedAsync() => await LoadDeckAsync();
+
+    private async Task LoadDeckAsync()
+    {
+        deck = await Api.GetDeckAsync(DeckId);
+        if (deck is not null)
+        {
+            deckTitle = deck.Title;
+            deckDescription = deck.Description ?? "";
+        }
+    }
+
+    private async Task SaveDeckAsync()
+    {
+        if (deck == null) return;
+
+        try
+        {
+            await Api.UpdateDeckAsync(deck.Id, new DeckRequest { Title = deckTitle, Description = deckDescription });
+            actionError = "";
+            await LoadDeckAsync();
+        }
+        catch (ApiException ex)
+        {
+            actionError = ex.Message;
+        }
+    }
+
+    private async Task AddCardAsync()
+    {
+        if (deck is null || string.IsNullOrWhiteSpace(newQuestion))
+            return;
+
+        try
+        {
+            await Api.CreateCardAsync(deck.Id, new CardRequest
+            {
+                CardType = newCardType,
+                Question = newQuestion,
+                Answer = newAnswer,
+                Hint = newHint,
+                Explanation = newExplanation
+            });
+            actionError = "";
+            ResetAddForm();
+            await LoadDeckAsync();
+        }
+        catch (ApiException ex)
+        {
+            actionError = ex.Message;
+        }
+    }
+
+    private void ResetAddForm()
+    {
+        showAddForm = false;
+        newQuestion = "";
+        newAnswer = "";
+        newCardType = "Basic";
+        newHint = "";
+        newExplanation = "";
+    }
+
+    private void StartCardEdit(CardDto card)
+    {
+        editingCardId = card.Id;
+        editQuestion = card.Question;
+        editAnswer = card.Answer;
+        editCardType = card.CardType;
+        editHint = card.Hint ?? "";
+        editExplanation = card.Explanation ?? "";
+    }
+
+    private void CancelCardEdit()
+    {
+        editingCardId = null;
+        editQuestion = "";
+        editAnswer = "";
+        editCardType = "Basic";
+        editHint = "";
+        editExplanation = "";
+    }
+
+    private async Task SaveCardAsync()
+    {
+        if (editingCardId is not int cardId || string.IsNullOrWhiteSpace(editQuestion))
+            return;
+
+        try
+        {
+            await Api.UpdateCardAsync(cardId, new CardRequest
+            {
+                CardType = editCardType,
+                Question = editQuestion,
+                Answer = editAnswer,
+                Hint = editHint,
+                Explanation = editExplanation
+            });
+            actionError = "";
+            CancelCardEdit();
+            await LoadDeckAsync();
+        }
+        catch (ApiException ex)
+        {
+            actionError = ex.Message;
+        }
+    }
+
+    private void ToggleImportForm()
+    {
+        showImportForm = !showImportForm;
+        importMessage = "";
+        importError = "";
+        if (!showImportForm)
+            importText = "";
+    }
+
+    private async Task ImportCardsAsync()
+    {
+        if (deck is null)
+            return;
+
+        try
+        {
+            var result = await Api.ImportCardsAsync(deck.Id, importText);
+            importMessage = $"Imported {result.Imported} card{(result.Imported == 1 ? "" : "s")}{(result.Skipped > 0 ? $"; skipped {result.Skipped} duplicate{(result.Skipped == 1 ? "" : "s")}" : "")}.";
+            importError = "";
+            importText = "";
+            await LoadDeckAsync();
+        }
+        catch (ApiException ex)
+        {
+            importError = ex.Message;
+            importMessage = "";
+        }
+    }
+
+    private async Task DeleteCardAsync(int cardId)
+    {
+        try
+        {
+            await Api.DeleteCardAsync(cardId);
+            actionError = "";
+            await LoadDeckAsync();
+        }
+        catch (ApiException ex)
+        {
+            actionError = ex.Message;
+        }
+    }
+}

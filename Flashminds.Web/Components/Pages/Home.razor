@@ -1,0 +1,107 @@
+@page "/"
+@inject ApiClient Api
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<PageTitle>FlashMind — Study smarter</PageTitle>
+
+<div class="app-page">
+    <AuthorizeView>
+        <Authorized>
+            <section class="daily-hero">
+                <div>
+                    <div class="eyebrow">Your learning plan</div>
+                    <h1>Ready for today’s review?</h1>
+                    <p>@DailyMessage</p>
+                </div>
+                @if (dueCards > 0 && nextDeckId is not null)
+                {
+                    <a class="btn btn-primary btn-lg" href="/study/@nextDeckId">Start studying <span aria-hidden="true">→</span></a>
+                }
+                else
+                {
+                    <a class="btn btn-primary btn-lg" href="/decks">Create a deck <span aria-hidden="true">→</span></a>
+                }
+            </section>
+
+            <section class="daily-stat-grid" aria-label="Today’s study statistics">
+                <article class="daily-stat"><span class="daily-stat-icon">◷</span><strong>@dueCards</strong><span>Due now</span></article>
+                <article class="daily-stat"><span class="daily-stat-icon">▤</span><strong>@deckCount</strong><span>Your decks</span></article>
+                <article class="daily-stat"><span class="daily-stat-icon">↗</span><strong>@cardsReviewedToday</strong><span>Reviewed today</span></article>
+                <article class="daily-stat"><span class="daily-stat-icon">✓</span><strong>@masteredCards</strong><span>Mastered cards</span></article>
+            </section>
+
+            <section class="dashboard-section">
+                <div class="section-heading"><div><div class="eyebrow">Keep moving</div><h2>What to study next</h2></div><a href="/decks">View all decks</a></div>
+                @if (dueDecks.Count == 0)
+                {
+                    <div class="empty-state compact-empty"><div class="empty-icon">✓</div><h2>You’re caught up</h2><p>No cards are due right now. Add a new deck or return when your next reviews are ready.</p><a class="btn btn-secondary" href="/decks">Open decks</a></div>
+                }
+                else
+                {
+                    <div class="next-deck-list">
+                        @foreach (var item in dueDecks)
+                        {
+                            <article class="next-deck">
+                                <span class="deck-icon" aria-hidden="true">▤</span>
+                                <div><h3>@item.Title</h3><p>@item.DueCards due · @item.TotalCards cards in this deck</p></div>
+                                <a class="btn btn-secondary btn-sm" href="/study/@item.Id">Review</a>
+                            </article>
+                        }
+                    </div>
+                }
+            </section>
+        </Authorized>
+        <NotAuthorized>
+            <section class="home-hero">
+                <div class="home-copy">
+                    <div class="eyebrow">Your focused learning space</div>
+                    <h1>Remember more.<br /><em>Stress less.</em></h1>
+                    <p>Build your own flashcard decks, make every review count, and see real progress as you study.</p>
+                    <div class="hero-actions"><a href="/register" class="btn btn-primary">Create a free account <span aria-hidden="true">→</span></a><a href="/login" class="btn btn-secondary">Sign in</a></div>
+                </div>
+                <div class="hero-orbit" aria-hidden="true">
+                    <div class="hero-card hero-card-main"><small>Today’s review</small><h3>What is active recall?</h3><div class="progress" style="height: .5rem;"><div class="progress-bar" style="width: 68%;"></div></div><div class="mini-row mt-3"><span class="mini-dot"></span> One small step closer</div></div>
+                    <div class="hero-card hero-card-mini"><small>Smart schedule</small><div class="d-flex align-items-center gap-2 mt-2"><span style="font-size: 1.5rem;">✦</span><strong>Review at the right time</strong></div></div>
+                </div>
+            </section>
+        </NotAuthorized>
+    </AuthorizeView>
+
+    <section class="feature-grid" aria-label="FlashMind features">
+        <article class="home-feature"><div class="feature-icon">▤</div><h3>Organize your course work</h3><p>Keep every topic tidy with dedicated decks for each class, exam, or assignment.</p></article>
+        <article class="home-feature"><div class="feature-icon">↻</div><h3>Review with intention</h3><p>Rate each answer honestly. Tough cards return sooner, mastered cards make room for new learning.</p></article>
+        <article class="home-feature"><div class="feature-icon">↗</div><h3>See what’s sticking</h3><p>Use your dashboard to spot mastery, due cards, and the momentum you are building.</p></article>
+    </section>
+</div>
+
+@code {
+    private List<DeckSummaryDto> dueDecks = [];
+    private int? nextDeckId;
+    private int deckCount;
+    private int dueCards;
+    private int masteredCards;
+    private int cardsReviewedToday;
+
+    private string DailyMessage => dueCards switch
+    {
+        0 when deckCount == 0 => "Create your first deck and turn your notes into a reliable study habit.",
+        0 => "Nothing is due right now. Your next review will be waiting when the time is right.",
+        1 => "One card is ready for you. A quick review keeps the momentum going.",
+        _ => $"You have {dueCards} cards ready. A focused review now will make tomorrow easier."
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        var user = (await AuthenticationStateProvider.GetAuthenticationStateAsync()).User;
+        if (user.Identity?.IsAuthenticated != true)
+            return;
+
+        var dashboard = await Api.GetDashboardAsync();
+        dueDecks = dashboard.DueDecks;
+        nextDeckId = dashboard.NextDeckId;
+        deckCount = dashboard.DeckCount;
+        dueCards = dashboard.DueCards;
+        masteredCards = dashboard.MasteredCards;
+        cardsReviewedToday = dashboard.CardsReviewedToday;
+    }
+}

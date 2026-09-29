@@ -1,11 +1,12 @@
 services:
+  # Backend: REST API, database and accounts. Swagger UI is served at /swagger.
   - type: web
-    name: flashminds
+    name: flashminds-api
     runtime: docker
     plan: starter
-    dockerfilePath: ./Dockerfile
+    dockerfilePath: ./Flashminds.Api/Dockerfile
     dockerContext: .
-    healthCheckPath: /
+    healthCheckPath: /health
     envVars:
       - key: ASPNETCORE_ENVIRONMENT
         value: Production
@@ -15,7 +16,25 @@ services:
         value: Data Source=/data/flashminds-auth.db
       - key: LegacyDeckOwnerEmail
         value: ""
+      # Secret used to sign login tokens. Generated once by Render and kept across deploys.
+      - key: Jwt__Key
+        generateValue: true
     disk:
       name: flashminds-data
       mountPath: /data
       sizeGB: 1
+
+  # Frontend: Blazor Server UI. It has no database and talks only to the API.
+  - type: web
+    name: flashminds
+    runtime: docker
+    plan: starter
+    dockerfilePath: ./Flashminds.Web/Dockerfile
+    dockerContext: .
+    healthCheckPath: /
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      # Public URL of the API service above. Change it if Render gives the API a different address.
+      - key: Api__BaseUrl
+        value: https://flashminds-api.onrender.com

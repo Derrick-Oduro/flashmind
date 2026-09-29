@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="Flashminds.Api/Flashminds.Api.csproj" />
+  <Project Path="Flashminds.Contracts/Flashminds.Contracts.csproj" />
+  <Project Path="Flashminds.Web/Flashminds.Web.csproj" />
+</Solution>

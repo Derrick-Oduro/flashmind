@@ -1,0 +1,210 @@
+@page "/decks"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject ApiClient Api
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+<PageTitle>Decks - FlashMind</PageTitle>
+
+<div class="app-page decks-page">
+    <div class="page-heading">
+        <div>
+        <div class="eyebrow">Your library</div>
+        <h1>My decks</h1>
+        <p>Create focused sets, then return to the cards that need your attention.</p>
+        </div>
+        <a class="btn btn-primary" href="/decks/new">
+            <span aria-hidden="true">+</span> New deck
+        </a>
+    </div>
+
+    @if (isFormVisible)
+    {
+        <div class="surface-card deck-form-panel">
+            <div class="deck-form-heading">
+                <span aria-hidden="true">✦</span><h2>Create a new deck</h2>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label">Deck Title</label>
+                    <input type="text" class="form-control" @bind="formTitle" placeholder="e.g., Spanish Vocabulary" />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Description (optional)</label>
+                    <textarea class="form-control" @bind="formDescription" rows="2" placeholder="Brief description..."></textarea>
+                </div>
+                <button class="btn btn-success me-2" @onclick="CreateDeckAsync" disabled="@isLoading">
+                    @if (isLoading) { <span>Creating...</span> } else { <span>Create deck</span> }
+                </button>
+                <button class="btn btn-secondary" @onclick="ToggleForm" disabled="@isLoading">Cancel</button>
+            </div>
+        </div>
+    }
+
+    @if (errorMessage != "")
+    {
+        <div class="alert alert-danger alert-dismissible fade show">
+            <strong>Error:</strong> @errorMessage
+            <button type="button" class="btn-close" @onclick="ClearError"></button>
+        </div>
+    }
+
+    @if (successMessage != "")
+    {
+        <div class="alert alert-success alert-dismissible fade show">
+            @successMessage
+            <button type="button" class="btn-close" @onclick="ClearSuccess"></button>
+        </div>
+    }
+
+    @if (decks.Count == 0)
+    {
+        <div class="empty-state">
+            <div class="empty-icon">▤</div>
+            <h2>Your library is ready</h2>
+            <p class="mb-3">Create your first deck and turn your notes into a study routine.</p>
+            <a class="btn btn-primary" href="/decks/new">Create your first deck</a>
+        </div>
+    }
+    else
+    {
+        <div class="deck-grid">
+            @foreach (var deck in decks)
+            {
+                var stats = deck;
+                <div>
+                    <div class="card deck-card">
+                        <div class="card-body">
+                            <div class="deck-card-title-row">
+                                <span class="deck-icon" aria-hidden="true">▤</span>
+                                <h2>@deck.Title</h2>
+                            </div>
+                            @if (!string.IsNullOrEmpty(deck.Description))
+                            {
+                                <p class="deck-description">@deck.Description</p>
+                            }
+                            else { <p class="deck-description">A focused set of cards ready for your next review.</p> }
+
+                            <div class="deck-stats">
+                                <div class="deck-stat"><span>Cards</span><strong>@stats.TotalCards</strong></div>
+                                <div class="deck-stat"><span>Due</span><strong>@stats.DueCards</strong></div>
+                                <div class="deck-stat"><span>Mastery</span><strong>@Math.Round(stats.MasteryPercentage)%</strong></div>
+                            </div>
+
+                            <div class="deck-progress">
+                                @{ var pct = Math.Round(stats.MasteryPercentage); }
+                                <div class="deck-progress-label"><span>Mastery progress</span><span>@pct%</span></div>
+                                <div class="progress" style="height: .5rem;">
+                                    <div class="progress-bar" role="progressbar" style="width: @pct%" aria-valuenow="@((int)pct)" aria-valuemin="0" aria-valuemax="100"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card-footer deck-actions">
+                            <a class="btn btn-sm btn-primary" href="/study/@deck.Id">
+                                Study
+                            </a>
+                            <a class="btn btn-sm btn-secondary" href="/deck/@deck.Id/edit">
+                                Edit
+                            </a>
+                            <form method="post" action="/decks/@deck.Id/delete" class="d-inline">
+                                <AntiforgeryToken />
+                                <button class="btn btn-sm btn-danger" type="submit">Delete</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private List<DeckSummaryDto> decks = new();
+    private bool isFormVisible = false;
+    private bool isLoading = false;
+    private string formTitle = "";
+    private string formDescription = "";
+    private string errorMessage = "";
+    private string successMessage = "";
+
+    protected override async Task OnInitializedAsync() => await LoadDecksAsync();
+
+    private async Task LoadDecksAsync()
+    {
+        try
+        {
+            decks = await Api.GetDecksAsync();
+        }
+        catch (ApiException ex)
+        {
+            errorMessage = $"Error loading decks: {ex.Message}";
+        }
+    }
+
+    private void ToggleForm()
+    {
+        isFormVisible = !isFormVisible;
+        if (!isFormVisible)
+        {
+            formTitle = "";
+            formDescription = "";
+            errorMessage = "";
+        }
+    }
+
+    private void ClearError() => errorMessage = "";
+    private void ClearSuccess() => successMessage = "";
+    private void StudyDeck(int deckId) => Navigation.NavigateTo($"/study/{deckId}");
+    private void EditDeck(int deckId) => Navigation.NavigateTo($"/deck/{deckId}/edit");
+
+    private async Task CreateDeckAsync()
+    {
+        if (string.IsNullOrWhiteSpace(formTitle))
+        {
+            errorMessage = "Please enter a deck title";
+            return;
+        }
+
+        isLoading = true;
+        errorMessage = "";
+        successMessage = "";
+
+        try
+        {
+            await Api.CreateDeckAsync(new DeckRequest { Title = formTitle.Trim(), Description = formDescription?.Trim() });
+
+            successMessage = $"Deck '{formTitle}' created successfully!";
+            formTitle = "";
+            formDescription = "";
+            isFormVisible = false;
+
+            await LoadDecksAsync();
+        }
+        catch (ApiException ex)
+        {
+            errorMessage = $"Failed to create deck: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task DeleteDeckAsync(int deckId)
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", "Delete this deck and all its cards?"))
+            return;
+
+        try
+        {
+            await Api.DeleteDeckAsync(deckId);
+            successMessage = "Deck deleted successfully";
+            await LoadDecksAsync();
+        }
+        catch (ApiException ex)
+        {
+            errorMessage = $"Failed to delete deck: {ex.Message}";
+        }
+    }
+}
