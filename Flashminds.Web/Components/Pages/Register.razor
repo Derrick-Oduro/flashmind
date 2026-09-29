@@ -11,7 +11,7 @@
 
             @if (Navigation.Uri.Contains("error=invalid", StringComparison.OrdinalIgnoreCase))
             {
-                <div class="alert alert-danger">Please check your email address and password, then try again.</div>
+                <div class="alert alert-danger">@(string.IsNullOrWhiteSpace(ErrorMessage) ? "Please check your email address and password, then try again." : ErrorMessage)</div>
             }
 
             <form method="post" action="/account/register">
@@ -35,3 +35,14 @@
         </div>
     </div>
 </div>
+
+@code {
+    private string? ErrorMessage
+    {
+        get
+        {
+            var query = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(new Uri(Navigation.Uri).Query);
+            return query.TryGetValue("message", out var message) ? message.ToString() : null;
+        }
+    }
+}

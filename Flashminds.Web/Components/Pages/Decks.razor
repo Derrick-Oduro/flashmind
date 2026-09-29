@@ -1,13 +1,7 @@
 @page "/decks"
 @attribute [Authorize]
-@using Flashminds.Data
 @rendermode InteractiveServer
-@using Flashminds.Models
-@using Flashminds.Services
-@using Microsoft.EntityFrameworkCore
-@inject IDbContextFactory<FlashmindsContext> ContextFactory
-@inject AuthenticationStateProvider AuthenticationStateProvider
-@inject SpacedRepetitionService RepetitionService
+@inject ApiClient Api
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
 
@@ -78,7 +72,7 @@
         <div class="deck-grid">
             @foreach (var deck in decks)
             {
-                var stats = RepetitionService.GetDeckStats(deck);
+                var stats = deck;
                 <div>
                     <div class="card deck-card">
                         <div class="card-body">
@@ -126,37 +120,24 @@
 </div>
 
 @code {
-    private List<Deck> decks = new();
+    private List<DeckSummaryDto> decks = new();
     private bool isFormVisible = false;
     private bool isLoading = false;
     private string formTitle = "";
     private string formDescription = "";
     private string errorMessage = "";
     private string successMessage = "";
-    private string? userId;
 
-    protected override async Task OnInitializedAsync()
-    {
-        userId = (await AuthenticationStateProvider.GetAuthenticationStateAsync()).User.FindFirstValue(ClaimTypes.NameIdentifier);
-        await LoadDecksAsync();
-    }
+    protected override async Task OnInitializedAsync() => await LoadDecksAsync();
 
     private async Task LoadDecksAsync()
     {
         try
         {
-            Console.WriteLine("🔄 Loading decks...");
-            await using var context = await ContextFactory.CreateDbContextAsync();
-            decks = await context.Decks
-                .Where(d => d.OwnerId == userId)
-                .Include(d => d.Cards)
-                .OrderByDescending(d => d.CreatedAt)
-                .ToListAsync();
-            Console.WriteLine($"✅ Loaded {decks.Count} decks");
+            decks = await Api.GetDecksAsync();
         }
-        catch (Exception ex)
+        catch (ApiException ex)
         {
-            Console.WriteLine($"❌ Error loading decks: {ex}");
             errorMessage = $"Error loading decks: {ex.Message}";
         }
     }
@@ -191,23 +172,7 @@
 
         try
         {
-            Console.WriteLine($"📝 Creating deck: {formTitle}");
-
-            await using var context = await ContextFactory.CreateDbContextAsync();
-
-            var newDeck = new Deck
-            {
-                Title = formTitle.Trim(),
-                Description = formDescription?.Trim(),
-                OwnerId = userId,
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
-            };
-
-            context.Decks.Add(newDeck);
-            int result = await context.SaveChangesAsync();
-
-            Console.WriteLine($"✅ Deck created! SaveChangesAsync returned: {result}");
+            await Api.CreateDeckAsync(new DeckRequest { Title = formTitle.Trim(), Description = formDescription?.Trim() });
 
             successMessage = $"Deck '{formTitle}' created successfully!";
             formTitle = "";
@@ -216,9 +181,8 @@
 
             await LoadDecksAsync();
         }
-        catch (Exception ex)
+        catch (ApiException ex)
         {
-            Console.WriteLine($"❌ Error creating deck: {ex}");
             errorMessage = $"Failed to create deck: {ex.Message}";
         }
         finally
@@ -234,22 +198,12 @@
 
         try
         {
-            Console.WriteLine($"🗑️ Deleting deck {deckId}...");
-            await using var context = await ContextFactory.CreateDbContextAsync();
-
-            var deck = await context.Decks.FirstOrDefaultAsync(d => d.Id == deckId && d.OwnerId == userId);
-            if (deck != null)
-            {
-                context.Decks.Remove(deck);
-                await context.SaveChangesAsync();
-                Console.WriteLine($"✅ Deck deleted");
-                successMessage = "Deck deleted successfully";
-                await LoadDecksAsync();
-            }
+            await Api.DeleteDeckAsync(deckId);
+            successMessage = "Deck deleted successfully";
+            await LoadDecksAsync();
         }
-        catch (Exception ex)
+        catch (ApiException ex)
         {
-            Console.WriteLine($"❌ Error deleting deck: {ex}");
             errorMessage = $"Failed to delete deck: {ex.Message}";
         }
     }

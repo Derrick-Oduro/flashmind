@@ -1,10 +1,6 @@
 @page "/deck/{DeckId:int}/edit"
 @attribute [Authorize]
-@using Flashminds.Data
-@using Flashminds.Models
-@using Microsoft.EntityFrameworkCore
-@inject IDbContextFactory<FlashmindsContext> ContextFactory
-@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject ApiClient Api
 @inject NavigationManager Navigation
 
 <PageTitle>Edit Deck - FlashMind</PageTitle>
@@ -32,11 +28,11 @@
                         <h2 class="fs-5 mb-4">Deck information</h2>
                         <div class="mb-3">
                             <label class="form-label">Title</label>
-                            <input type="text" class="form-control" @bind="deck.Title" />
+                            <input type="text" class="form-control" @bind="deckTitle" />
                         </div>
                         <div class="mb-3">
                             <label class="form-label">Description</label>
-                            <textarea class="form-control" @bind="deck.Description" rows="3"></textarea>
+                            <textarea class="form-control" @bind="deckDescription" rows="3"></textarea>
                         </div>
                         <button class="btn btn-success me-2" @onclick="SaveDeckAsync">Save</button>
                         <a href="/decks" class="btn btn-secondary">Cancel</a>
@@ -52,6 +48,11 @@
                                 <a class="btn btn-sm btn-primary" href="/deck/@DeckId/cards/new">+ Add Card</a>
                             </div>
                         </div>
+
+                        @if (!string.IsNullOrWhiteSpace(actionError))
+                        {
+                            <div class="alert alert-danger">@actionError</div>
+                        }
 
                         @if (showAddForm)
                         {
@@ -148,7 +149,9 @@
     [Parameter]
     public int DeckId { get; set; }
 
-    private Deck? deck;
+    private DeckDetailDto? deck;
+    private string deckTitle = "";
+    private string deckDescription = "";
     private bool showAddForm = false;
     private bool showImportForm = false;
     private string newQuestion = "";
@@ -165,28 +168,17 @@
     private string importText = "";
     private string importMessage = "";
     private string importError = "";
-    private string? userId;
+    private string actionError = "";
 
-    protected override async Task OnInitializedAsync()
-    {
-        userId = (await AuthenticationStateProvider.GetAuthenticationStateAsync()).User.FindFirstValue(ClaimTypes.NameIdentifier);
-        await LoadDeckAsync();
-    }
+    protected override async Task OnInitializedAsync() => await LoadDeckAsync();
 
     private async Task LoadDeckAsync()
     {
-        try
+        deck = await Api.GetDeckAsync(DeckId);
+        if (deck is not null)
         {
-            Console.WriteLine($"Loading deck {DeckId}...");
-            await using var context = await ContextFactory.CreateDbContextAsync();
-            deck = await context.Decks
-                .Include(d => d.Cards)
-                .FirstOrDefaultAsync(d => d.Id == DeckId && d.OwnerId == userId);
-            Console.WriteLine($"✅ Loaded deck: {deck?.Title}");
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"❌ Error loading deck: {ex}");
+            deckTitle = deck.Title;
+            deckDescription = deck.Description ?? "";
         }
     }
 
@@ -196,22 +188,13 @@
 
         try
         {
-            Console.WriteLine($"Saving deck {deck.Id}...");
-            await using var context = await ContextFactory.CreateDbContextAsync();
-            deck.UpdatedAt = DateTime.UtcNow;
-            var storedDeck = await context.Decks.FirstOrDefaultAsync(d => d.Id == deck.Id && d.OwnerId == userId);
-            if (storedDeck is null)
-                return;
-
-            storedDeck.Title = deck.Title;
-            storedDeck.Description = deck.Description;
-            storedDeck.UpdatedAt = DateTime.UtcNow;
-            await context.SaveChangesAsync();
-            Console.WriteLine($"✅ Deck saved");
+            await Api.UpdateDeckAsync(deck.Id, new DeckRequest { Title = deckTitle, Description = deckDescription });
+            actionError = "";
+            await LoadDeckAsync();
         }
-        catch (Exception ex)
+        catch (ApiException ex)
         {
-            Console.WriteLine($"❌ Error saving deck: {ex}");
+            actionError = ex.Message;
         }
     }
 
@@ -220,37 +203,23 @@
         if (deck is null || string.IsNullOrWhiteSpace(newQuestion))
             return;
 
-        var answer = newCardType == "Cloze" ? ExtractClozeAnswer(newQuestion) ?? newAnswer.Trim() : newAnswer.Trim();
-        if (string.IsNullOrWhiteSpace(answer))
-            return;
-
         try
         {
-            Console.WriteLine($"Adding card to deck {deck.Id}...");
-            await using var context = await ContextFactory.CreateDbContextAsync();
-
-            var card = new Card
+            await Api.CreateCardAsync(deck.Id, new CardRequest
             {
-                DeckId = deck.Id,
-                Question = newQuestion.Trim(),
-                Answer = answer,
                 CardType = newCardType,
-                Hint = EmptyToNull(newHint),
-                Explanation = EmptyToNull(newExplanation),
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
-            };
-
-            context.Cards.Add(card);
-            await context.SaveChangesAsync();
-            Console.WriteLine($"✅ Card added");
-
+                Question = newQuestion,
+                Answer = newAnswer,
+                Hint = newHint,
+                Explanation = newExplanation
+            });
+            actionError = "";
             ResetAddForm();
             await LoadDeckAsync();
         }
-        catch (Exception ex)
+        catch (ApiException ex)
         {
-            Console.WriteLine($"❌ Error adding card: {ex}");
+            actionError = ex.Message;
         }
     }
 
@@ -264,7 +233,7 @@
         newExplanation = "";
     }
 
-    private void StartCardEdit(Card card)
+    private void StartCardEdit(CardDto card)
     {
         editingCardId = card.Id;
         editQuestion = card.Question;
@@ -286,37 +255,28 @@
 
     private async Task SaveCardAsync()
     {
-        if (editingCardId is null || string.IsNullOrWhiteSpace(editQuestion))
+        if (editingCardId is not int cardId || string.IsNullOrWhiteSpace(editQuestion))
             return;
 
-        var answer = editCardType == "Cloze" ? ExtractClozeAnswer(editQuestion) ?? editAnswer.Trim() : editAnswer.Trim();
-        if (string.IsNullOrWhiteSpace(answer))
-            return;
-
-        await using var context = await ContextFactory.CreateDbContextAsync();
-        var card = await context.Cards.Include(item => item.Deck)
-            .FirstOrDefaultAsync(item => item.Id == editingCardId && item.Deck!.OwnerId == userId);
-        if (card is null)
-            return;
-
-        card.Question = editQuestion.Trim();
-        card.Answer = answer;
-        card.CardType = editCardType;
-        card.Hint = EmptyToNull(editHint);
-        card.Explanation = EmptyToNull(editExplanation);
-        card.UpdatedAt = DateTime.UtcNow;
-        await context.SaveChangesAsync();
-        CancelCardEdit();
-        await LoadDeckAsync();
+        try
+        {
+            await Api.UpdateCardAsync(cardId, new CardRequest
+            {
+                CardType = editCardType,
+                Question = editQuestion,
+                Answer = editAnswer,
+                Hint = editHint,
+                Explanation = editExplanation
+            });
+            actionError = "";
+            CancelCardEdit();
+            await LoadDeckAsync();
+        }
+        catch (ApiException ex)
+        {
+            actionError = ex.Message;
+        }
     }
-
-    private static string? ExtractClozeAnswer(string source)
-    {
-        var match = System.Text.RegularExpressions.Regex.Match(source, @"\{\{c\d+::(.*?)(?:::[^}]*)?\}\}", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-        return match.Success ? match.Groups[1].Value.Trim() : null;
-    }
-
-    private static string? EmptyToNull(string value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
     private void ToggleImportForm()
     {
@@ -332,73 +292,18 @@
         if (deck is null)
             return;
 
-        var candidates = ParseImportedCards(importText).ToList();
-        if (candidates.Count == 0)
+        try
         {
-            importError = "Add at least one complete question and answer pair. Use |, a tab, or a comma between them.";
-            importMessage = "";
-            return;
+            var result = await Api.ImportCardsAsync(deck.Id, importText);
+            importMessage = $"Imported {result.Imported} card{(result.Imported == 1 ? "" : "s")}{(result.Skipped > 0 ? $"; skipped {result.Skipped} duplicate{(result.Skipped == 1 ? "" : "s")}" : "")}.";
+            importError = "";
+            importText = "";
+            await LoadDeckAsync();
         }
-
-        if (candidates.Count > 500)
+        catch (ApiException ex)
         {
-            importError = "Import up to 500 cards at a time.";
+            importError = ex.Message;
             importMessage = "";
-            return;
-        }
-
-        await using var context = await ContextFactory.CreateDbContextAsync();
-        var ownedDeck = await context.Decks
-            .Include(item => item.Cards)
-            .FirstOrDefaultAsync(item => item.Id == deck.Id && item.OwnerId == userId);
-        if (ownedDeck is null)
-            return;
-
-        var knownQuestions = ownedDeck.Cards
-            .Select(card => card.Question.Trim())
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var cardsToAdd = candidates
-            .Where(candidate => knownQuestions.Add(candidate.Question))
-            .Select(candidate => new Card
-            {
-                DeckId = ownedDeck.Id,
-                Question = candidate.Question,
-                Answer = candidate.Answer,
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
-            })
-            .ToList();
-
-        if (cardsToAdd.Count == 0)
-        {
-            importError = "Every imported question is already in this deck.";
-            importMessage = "";
-            return;
-        }
-
-        context.Cards.AddRange(cardsToAdd);
-        await context.SaveChangesAsync();
-        var skipped = candidates.Count - cardsToAdd.Count;
-        importMessage = $"Imported {cardsToAdd.Count} card{(cardsToAdd.Count == 1 ? "" : "s")}{(skipped > 0 ? $"; skipped {skipped} duplicate{(skipped == 1 ? "" : "s")}" : "")}.";
-        importError = "";
-        importText = "";
-        await LoadDeckAsync();
-    }
-
-    private static IEnumerable<(string Question, string Answer)> ParseImportedCards(string source)
-    {
-        foreach (var rawLine in source.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-        {
-            var line = rawLine.Trim('\r', ' ', '\t');
-            var separator = line.Contains('|') ? '|' : line.Contains('\t') ? '\t' : ',';
-            var separatorIndex = line.IndexOf(separator);
-            if (separatorIndex <= 0 || separatorIndex >= line.Length - 1)
-                continue;
-
-            var question = line[..separatorIndex].Trim().Trim('"');
-            var answer = line[(separatorIndex + 1)..].Trim().Trim('"');
-            if (!string.IsNullOrWhiteSpace(question) && !string.IsNullOrWhiteSpace(answer))
-                yield return (question, answer);
         }
     }
 
@@ -406,22 +311,13 @@
     {
         try
         {
-            Console.WriteLine($"Deleting card {cardId}...");
-            await using var context = await ContextFactory.CreateDbContextAsync();
-            var card = await context.Cards
-                .Include(c => c.Deck)
-                .FirstOrDefaultAsync(c => c.Id == cardId && c.Deck!.OwnerId == userId);
-            if (card != null)
-            {
-                context.Cards.Remove(card);
-                await context.SaveChangesAsync();
-                Console.WriteLine($"✅ Card deleted");
-                await LoadDeckAsync();
-            }
+            await Api.DeleteCardAsync(cardId);
+            actionError = "";
+            await LoadDeckAsync();
         }
-        catch (Exception ex)
+        catch (ApiException ex)
         {
-            Console.WriteLine($"❌ Error deleting card: {ex}");
+            actionError = ex.Message;
         }
     }
 }

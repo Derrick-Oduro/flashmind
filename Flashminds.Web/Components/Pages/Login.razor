@@ -12,6 +12,14 @@
             {
                 <div class="alert alert-danger">The email address or password is incorrect.</div>
             }
+            else if (Navigation.Uri.Contains("error=expired", StringComparison.OrdinalIgnoreCase))
+            {
+                <div class="alert alert-info">Your session has ended. Please sign in again.</div>
+            }
+            else if (Navigation.Uri.Contains("error=unavailable", StringComparison.OrdinalIgnoreCase))
+            {
+                <div class="alert alert-danger">FlashMind could not reach the server. Please try again in a moment.</div>
+            }
 
             <form method="post" action="/account/login">
                 <AntiforgeryToken />

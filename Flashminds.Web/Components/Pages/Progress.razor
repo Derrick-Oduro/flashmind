@@ -1,12 +1,6 @@
 @page "/progress"
 @attribute [Authorize]
-@using Flashminds.Data
-@using Flashminds.Models
-@using Flashminds.Services
-@using Microsoft.EntityFrameworkCore
-@inject IDbContextFactory<FlashmindsContext> ContextFactory
-@inject AuthenticationStateProvider AuthenticationStateProvider
-@inject SpacedRepetitionService RepetitionService
+@inject ApiClient Api
 
 <PageTitle>Progress - FlashMind</PageTitle>
 
@@ -77,8 +71,9 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach (var (deck, stats) in deckStats)
+                            @foreach (var deck in decks)
                             {
+                                var stats = deck;
                                 <tr>
                                     <td>
                                         <strong>@deck.Title</strong>
@@ -156,7 +151,7 @@
                                 @foreach (var session in recentSessions.Take(10))
                                 {
                                     <tr>
-                                        <td>@session.Deck?.Title</td>
+                                        <td>@session.DeckTitle</td>
                                         <td>@session.StartedAt.ToString("MMM d, yyyy HH:mm")</td>
                                         <td>@session.CardReviewedCount</td>
                                         <td>@FormatDuration(session.DurationSeconds)</td>
@@ -172,54 +167,15 @@
 </div>
 
 @code {
-    private List<Deck> decks = new();
-    private List<(Deck, DeckStats)> deckStats = new();
-    private List<StudySession> recentSessions = new();
-    private OverallStats overallStats = new();
-    private string? userId;
+    private List<DeckSummaryDto> decks = new();
+    private List<StudySessionDto> recentSessions = new();
+    private ProgressDto overallStats = new(0, 0, 0, 0, [], []);
 
     protected override async Task OnInitializedAsync()
     {
-        userId = (await AuthenticationStateProvider.GetAuthenticationStateAsync()).User.FindFirstValue(ClaimTypes.NameIdentifier);
-        await LoadDataAsync();
-    }
-
-    private async Task LoadDataAsync()
-    {
-        await using var context = await ContextFactory.CreateDbContextAsync();
-
-        decks = await context.Decks
-            .AsNoTracking()
-            .Where(d => d.OwnerId == userId)
-            .Include(d => d.Cards)
-            .Include(d => d.StudySessions)
-            .ToListAsync();
-
-        deckStats = decks
-            .Select(d => (d, RepetitionService.GetDeckStats(d)))
-            .ToList();
-
-        recentSessions = await context.StudySessions
-            .AsNoTracking()
-            .Include(s => s.Deck)
-            .Where(s => s.Deck!.OwnerId == userId)
-            .OrderByDescending(s => s.StartedAt)
-            .ToListAsync();
-
-        CalculateOverallStats();
-    }
-
-    private void CalculateOverallStats()
-    {
-        overallStats.TotalDecks = decks.Count;
-        overallStats.TotalCards = decks.Sum(d => d.Cards.Count);
-
-        if (deckStats.Count > 0)
-        {
-            overallStats.AverageMastery = deckStats.Average(ds => ds.Item2.MasteryPercentage);
-        }
-
-        overallStats.CardsDueToday = decks.Sum(d => RepetitionService.GetCardsDueTodayCount(d.Cards));
+        overallStats = await Api.GetProgressAsync();
+        decks = overallStats.Decks;
+        recentSessions = overallStats.RecentSessions;
     }
 
     private string GetProgressBarClass(double percentage)
@@ -236,13 +192,5 @@
             return $"{seconds}s";
         var minutes = seconds / 60;
         return $"{minutes}m";
-    }
-
-    private class OverallStats
-    {
-        public int TotalDecks { get; set; }
-        public int TotalCards { get; set; }
-        public double AverageMastery { get; set; }
-        public int CardsDueToday { get; set; }
     }
 }

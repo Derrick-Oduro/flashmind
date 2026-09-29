@@ -1,8 +1,5 @@
 @page "/"
-@using Flashminds.Data
-@using Flashminds.Models
-@using Microsoft.EntityFrameworkCore
-@inject IDbContextFactory<FlashmindsContext> ContextFactory
+@inject ApiClient Api
 @inject AuthenticationStateProvider AuthenticationStateProvider
 
 <PageTitle>FlashMind — Study smarter</PageTitle>
@@ -16,9 +13,9 @@
                     <h1>Ready for today’s review?</h1>
                     <p>@DailyMessage</p>
                 </div>
-                @if (dueCards > 0 && nextDeck is not null)
+                @if (dueCards > 0 && nextDeckId is not null)
                 {
-                    <a class="btn btn-primary btn-lg" href="/study/@nextDeck.Id">Start studying <span aria-hidden="true">→</span></a>
+                    <a class="btn btn-primary btn-lg" href="/study/@nextDeckId">Start studying <span aria-hidden="true">→</span></a>
                 }
                 else
                 {
@@ -28,7 +25,7 @@
 
             <section class="daily-stat-grid" aria-label="Today’s study statistics">
                 <article class="daily-stat"><span class="daily-stat-icon">◷</span><strong>@dueCards</strong><span>Due now</span></article>
-                <article class="daily-stat"><span class="daily-stat-icon">▤</span><strong>@decks.Count</strong><span>Your decks</span></article>
+                <article class="daily-stat"><span class="daily-stat-icon">▤</span><strong>@deckCount</strong><span>Your decks</span></article>
                 <article class="daily-stat"><span class="daily-stat-icon">↗</span><strong>@cardsReviewedToday</strong><span>Reviewed today</span></article>
                 <article class="daily-stat"><span class="daily-stat-icon">✓</span><strong>@masteredCards</strong><span>Mastered cards</span></article>
             </section>
@@ -46,8 +43,8 @@
                         {
                             <article class="next-deck">
                                 <span class="deck-icon" aria-hidden="true">▤</span>
-                                <div><h3>@item.Deck.Title</h3><p>@item.DueCards due · @item.Deck.Cards.Count cards in this deck</p></div>
-                                <a class="btn btn-secondary btn-sm" href="/study/@item.Deck.Id">Review</a>
+                                <div><h3>@item.Title</h3><p>@item.DueCards due · @item.TotalCards cards in this deck</p></div>
+                                <a class="btn btn-secondary btn-sm" href="/study/@item.Id">Review</a>
                             </article>
                         }
                     </div>
@@ -78,16 +75,16 @@
 </div>
 
 @code {
-    private readonly List<Deck> decks = new();
-    private readonly List<DueDeck> dueDecks = new();
-    private Deck? nextDeck;
+    private List<DeckSummaryDto> dueDecks = [];
+    private int? nextDeckId;
+    private int deckCount;
     private int dueCards;
     private int masteredCards;
     private int cardsReviewedToday;
 
     private string DailyMessage => dueCards switch
     {
-        0 when decks.Count == 0 => "Create your first deck and turn your notes into a reliable study habit.",
+        0 when deckCount == 0 => "Create your first deck and turn your notes into a reliable study habit.",
         0 => "Nothing is due right now. Your next review will be waiting when the time is right.",
         1 => "One card is ready for you. A quick review keeps the momentum going.",
         _ => $"You have {dueCards} cards ready. A focused review now will make tomorrow easier."
@@ -96,32 +93,15 @@
     protected override async Task OnInitializedAsync()
     {
         var user = (await AuthenticationStateProvider.GetAuthenticationStateAsync()).User;
-        var userId = user.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (string.IsNullOrWhiteSpace(userId))
+        if (user.Identity?.IsAuthenticated != true)
             return;
 
-        await using var context = await ContextFactory.CreateDbContextAsync();
-        var userDecks = await context.Decks.AsNoTracking()
-            .Where(deck => deck.OwnerId == userId)
-            .Include(deck => deck.Cards)
-            .OrderBy(deck => deck.Title)
-            .ToListAsync();
-        decks.AddRange(userDecks);
-
-        var now = DateTime.UtcNow;
-        foreach (var deck in decks)
-        {
-            var deckDueCards = deck.Cards.Count(card => card.NextReviewDate <= now);
-            dueCards += deckDueCards;
-            masteredCards += deck.Cards.Count(card => card.ReviewCount > 0 && (double)card.CorrectCount / card.ReviewCount >= .8);
-            if (deckDueCards > 0)
-                dueDecks.Add(new DueDeck(deck, deckDueCards));
-        }
-
-        nextDeck = dueDecks.OrderByDescending(item => item.DueCards).Select(item => item.Deck).FirstOrDefault();
-        cardsReviewedToday = await context.CardReviews.AsNoTracking()
-            .CountAsync(review => review.ReviewedAt >= now.Date && review.Card!.Deck!.OwnerId == userId);
+        var dashboard = await Api.GetDashboardAsync();
+        dueDecks = dashboard.DueDecks;
+        nextDeckId = dashboard.NextDeckId;
+        deckCount = dashboard.DeckCount;
+        dueCards = dashboard.DueCards;
+        masteredCards = dashboard.MasteredCards;
+        cardsReviewedToday = dashboard.CardsReviewedToday;
     }
-
-    private sealed record DueDeck(Deck Deck, int DueCards);
 }

@@ -2,19 +2,13 @@
 @page "/study/{DeckId:int}/reveal"
 @rendermode InteractiveServer
 @attribute [Authorize]
-@using Flashminds.Data
-@using Flashminds.Models
-@using Flashminds.Services
-@using Microsoft.EntityFrameworkCore
-@inject IDbContextFactory<FlashmindsContext> ContextFactory
-@inject AuthenticationStateProvider AuthenticationStateProvider
-@inject SpacedRepetitionService RepetitionService
+@inject ApiClient Api
 @inject NavigationManager Navigation
 
 <PageTitle>Study - FlashMind</PageTitle>
 
 <div class="app-page">
-    @if (deck == null)
+    @if (deckTitle is null)
     {
         <p>Loading...</p>
     }
@@ -34,7 +28,7 @@
 
         <div class="study-shell mx-auto">
                 <div class="study-heading">
-                    <div><div class="eyebrow">Study session</div><h1>@deck.Title</h1></div>
+                    <div><div class="eyebrow">Study session</div><h1>@deckTitle</h1></div>
                     <span class="study-count">@(currentCardIndex + 1) of @cardsToStudy.Count</span>
                 </div>
 
@@ -135,14 +129,13 @@
     [Parameter]
     public int DeckId { get; set; }
 
-    private Deck? deck;
-    private List<Card> cardsToStudy = new();
+    private string? deckTitle;
+    private List<CardDto> cardsToStudy = new();
     private int currentCardIndex = 0;
     private bool isFlipped = false;
     private string typedAnswer = "";
     private SessionStats sessionStats = new();
-    private StudySession? studySession;
-    private string? userId;
+    private int? studySessionId;
 
     private void ToggleCard()
     {
@@ -159,7 +152,7 @@
 
     private void RevealAnswer() => isFlipped = true;
 
-    private static bool IsCloze(Card card) => string.Equals(card.CardType, "Cloze", StringComparison.OrdinalIgnoreCase);
+    private static bool IsCloze(CardDto card) => string.Equals(card.CardType, CardTypes.Cloze, StringComparison.OrdinalIgnoreCase);
 
     private static string ClozePrompt(string source) => System.Text.RegularExpressions.Regex.Replace(
         source,
@@ -167,7 +160,7 @@
         "____",
         System.Text.RegularExpressions.RegexOptions.IgnoreCase);
 
-    private static string ClozeAnswer(Card card)
+    private static string ClozeAnswer(CardDto card)
     {
         var match = System.Text.RegularExpressions.Regex.Match(card.Question, @"\{\{c\d+::(.*?)(?:::[^}]*)?\}\}", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
         return match.Success ? match.Groups[1].Value.Trim() : card.Answer;
@@ -176,22 +169,17 @@
     protected override async Task OnInitializedAsync()
     {
         isFlipped = Navigation.Uri.TrimEnd('/').EndsWith("/reveal", StringComparison.OrdinalIgnoreCase);
-        userId = (await AuthenticationStateProvider.GetAuthenticationStateAsync()).User.FindFirstValue(ClaimTypes.NameIdentifier);
         await LoadStudyCardsAsync();
     }
 
     private async Task LoadStudyCardsAsync()
     {
-        await using var context = await ContextFactory.CreateDbContextAsync();
-        deck = await context.Decks
-            .AsNoTracking()
-            .Include(d => d.Cards)
-            .FirstOrDefaultAsync(d => d.Id == DeckId && d.OwnerId == userId);
+        var deck = await Api.GetDeckAsync(DeckId);
+        if (deck is null)
+            return;
 
-        if (deck != null)
-        {
-            cardsToStudy = RepetitionService.GetCardsDueToday(deck.Cards);
-        }
+        deckTitle = deck.Title;
+        cardsToStudy = await Api.GetDueCardsAsync(DeckId) ?? new();
     }
 
     private async Task MarkCard(int difficulty)
@@ -200,59 +188,24 @@
             return;
 
         var currentCard = cardsToStudy[currentCardIndex];
-        await using var context = await ContextFactory.CreateDbContextAsync();
-        var storedCard = await context.Cards
-            .Include(c => c.Deck)
-            .FirstOrDefaultAsync(c => c.Id == currentCard.Id && c.Deck!.OwnerId == userId);
-        if (storedCard is null)
+        try
         {
+            // The API reschedules the card and records the study session.
+            var result = await Api.ReviewCardAsync(currentCard.Id, new ReviewRequest
+            {
+                Rating = difficulty,
+                StudySessionId = studySessionId
+            });
+            studySessionId = result.StudySessionId;
+            sessionStats.ReviewCount = result.SessionReviewCount;
+            sessionStats.CorrectCount = result.SessionCorrectCount;
+        }
+        catch (ApiException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            // The card was deleted elsewhere; reload what is still due.
             await LoadStudyCardsAsync();
             return;
         }
-
-        // Update card with spaced repetition logic
-        RepetitionService.UpdateCardInterval(storedCard, difficulty);
-
-        // Create the session only when the user answers their first card.
-        // This avoids recording empty sessions when a user opens and leaves a deck.
-        var isNewSession = studySession is null;
-        studySession ??= new StudySession
-        {
-            DeckId = DeckId,
-            StartedAt = DateTime.UtcNow
-        };
-
-        sessionStats.ReviewCount++;
-        studySession.CardReviewedCount++;
-        if (difficulty >= 3)
-        {
-            sessionStats.CorrectCount++;
-            studySession.CardCorrectCount++;
-        }
-
-        studySession.DurationSeconds = (int)(DateTime.UtcNow - studySession.StartedAt).TotalSeconds;
-        if (currentCardIndex + 1 == cardsToStudy.Count)
-        {
-            studySession.CompletedAt = DateTime.UtcNow;
-        }
-
-        if (isNewSession)
-        {
-            context.StudySessions.Add(studySession);
-        }
-        else
-        {
-            context.StudySessions.Update(studySession);
-        }
-
-        context.CardReviews.Add(new CardReview
-        {
-            CardId = storedCard.Id,
-            StudySession = studySession,
-            Difficulty = difficulty
-        });
-
-        await context.SaveChangesAsync();
 
         // Move to next card
         isFlipped = false;
@@ -265,8 +218,8 @@
         public int ReviewCount { get; set; }
         public int CorrectCount { get; set; }
 
-        public double Accuracy => ReviewCount > 0 
-            ? Math.Round((double)CorrectCount / ReviewCount * 100, 1) 
+        public double Accuracy => ReviewCount > 0
+            ? Math.Round((double)CorrectCount / ReviewCount * 100, 1)
             : 0;
     }
 }
