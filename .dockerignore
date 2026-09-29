@@ -1,8 +1,9 @@
-bin/
-obj/
+**/bin/
+**/obj/
 .git/
 .vs/
+.playwright-mcp/
 *.user
 *.db
-Dockerfile*
+**/Dockerfile*
 README.md
