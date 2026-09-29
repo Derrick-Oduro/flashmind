@@ -1,0 +1,14 @@
+## Build output
+bin/
+obj/
+
+## IDE / user files
+.vs/
+.vscode/
+*.user
+*.suo
+
+## Local databases (may contain user data)
+*.db
+*.db-shm
+*.db-wal
